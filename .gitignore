@@ -1,0 +1,8 @@
+.build/
+.swiftpm/
+dist/
+*.dmg
+.DS_Store
+# Dziennik pracy z danymi o prywatnych dyskach i projektach — tylko lokalnie.
+STATUS.md
+Vendor/MidniteUIKit/.build/
