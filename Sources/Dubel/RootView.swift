@@ -25,10 +25,10 @@ struct RootView: View {
         .environment(\.richUI, prefs.auto.richUI)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button { (NSApp.delegate as? AppDelegate)?.startTour() } label: { Label("Co jest co", systemImage: "questionmark.circle") }
-                    .help("Pokaż, co jest co — samouczek")
-                Button { (NSApp.delegate as? AppDelegate)?.showSettings() } label: { Label("Ustawienia", systemImage: "gearshape") }
-                    .help("Ustawienia (⌘,)")
+                Button { (NSApp.delegate as? AppDelegate)?.startTour() } label: { Label(T("Co jest co"), systemImage: "questionmark.circle") }
+                    .help(T("Pokaż, co jest co — samouczek"))
+                Button { (NSApp.delegate as? AppDelegate)?.showSettings() } label: { Label(T("Ustawienia"), systemImage: "gearshape") }
+                    .help(T("Ustawienia (⌘,)"))
             }
         }
 
@@ -40,6 +40,14 @@ struct RootView: View {
     }
 
     @ViewBuilder var detail: some View {
+        if let key = app.selectedDrive {
+            DriveDetailScreen(key: key).id(key)
+        } else {
+            modeDetail
+        }
+    }
+
+    @ViewBuilder var modeDetail: some View {
         switch app.mode {
         case .duplicates: GroupsScreen(model: app.duplicates).id(Mode.duplicates)
         case .photos: GroupsScreen(model: app.photos).id(Mode.photos)
@@ -76,7 +84,7 @@ struct Sidebar: View {
     var body: some View {
         let modes = app.visibleModes
         let sections = modes.map(\.section).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
-        List(selection: Binding(get: { app.mode }, set: { if let m = $0 { app.mode = m } })) {
+        List(selection: Binding(get: { app.selectedDrive == nil ? app.mode : nil }, set: { if let m = $0 { app.selectedDrive = nil; app.mode = m } })) {
             ForEach(sections, id: \.self) { sec in
                 Section(sec) { ForEach(modes.filter { $0.section == sec }) { row($0) } }
             }
@@ -132,27 +140,32 @@ struct DisksPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
-                Caption("Dyski")
+                Caption(T("Dyski"))
                 Spacer()
                 Button { app.refreshVolumes() } label: { Image(systemName: "arrow.clockwise").font(.system(size: 10)) }
-                    .buttonStyle(.borderless).foregroundStyle(.secondary).help("Odśwież").accessibilityLabel("Odśwież dyski")
+                    .buttonStyle(.borderless).foregroundStyle(.secondary).help(T("Odśwież")).accessibilityLabel(T("Odśwież dyski"))
             }
             ForEach(app.volumes) { v in
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack {
-                        Text(v.name).font(.system(size: 11.5, weight: .medium)).lineLimit(1)
-                        Spacer()
-                        Text("wolne \(Fmt.bytes(v.free))").font(.system(size: 10.5)).foregroundStyle(.secondary).monospacedDigit()
-                    }
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.primary.opacity(0.08))
-                            Capsule().fill(Theme.fullness(v.used).gradient).frame(width: g.size.width * v.used)
+                Button { app.selectedDrive = v.key } label: { DriveRow(volume: v) }
+                    .buttonStyle(DriveButtonStyle(selected: app.selectedDrive == v.key))
+                    .accessibilityLabel(T("Pokaż dysk %@", "\(v.name)"))
+            }
+            // Dyski odłączone, których zawartość pamiętam.
+            let offline = app.drives.catalogs.values.filter { !app.drives.isMounted($0.key) }.sorted { $0.name < $1.name }
+            if !offline.isEmpty {
+                Caption(T("Odłączone")).padding(.top, 2)
+                ForEach(offline, id: \.key) { c in
+                    Button { app.selectedDrive = c.key } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "externaldrive.badge.xmark").font(.system(size: 10))
+                            Text(c.name).font(.system(size: 11.5, weight: .medium))
+                            Spacer()
+                            Text(Fmt.date.string(from: c.date)).font(.system(size: 10))
                         }
+                        .foregroundStyle(.secondary)
                     }
-                    .frame(height: 5)
+                    .buttonStyle(DriveButtonStyle(selected: app.selectedDrive == c.key))
                 }
-                .help("\(v.name): zajęte \(Fmt.percent(v.used)) z \(Fmt.bytes(v.total))")
             }
         }
         .padding(12)
@@ -163,24 +176,24 @@ struct DisksPanel: View {
 /// Samouczek „co jest co” — pokazywany raz po przewodniku, potem z menu Pomoc / Ustawień.
 enum Tour {
     static let steps: [CoachStep] = [
-        CoachStep(anchor: "mode-duplicates", symbol: "doc.on.doc", title: "Szukaj duplikatów",
-                  text: "Trzy sposoby: identyczne pliki (Duplikaty), ten sam obraz w innym rozmiarze albo serie zdjęć (Podobne zdjęcia) i ten sam materiał w innym eksporcie (Podobne wideo i audio)."),
-        CoachStep(anchor: "mode-transfer", symbol: "sdcard", title: "Karty z aparatu",
-                  text: "Podłączasz kartę i widzisz, co z niej jest już zgrane (i w jakim folderze), a czego nie ma nigdzie. Zaznaczasz pliki → Skopiuj albo Przenieś."),
-        CoachStep(anchor: "mode-backup", symbol: "arrow.left.arrow.right", title: "Porównaj foldery",
-                  text: "Czy wszystko z jednego miejsca jest w drugim? Np. folder roboczy vs dysk z archiwum. Tu też zapisujesz stałe pary, które porównujesz regularnie."),
-        CoachStep(anchor: "mode-system", symbol: "gauge.with.dots.needle.67percent", title: "Miejsce na dysku",
-                  text: "Pliki montażowe (rendery, podglądy, proxy i cache z Final Cut, Premiere, DaVinci, CapCut) i Dane systemowe — co po cichu zjada miejsce. Niczego tam nie usuwam sam."),
-        CoachStep(anchor: "disks", symbol: "internaldrive", title: "Twoje dyski",
-                  text: "Ile miejsca zostało na każdym podłączonym dysku. Pasek robi się czerwony, gdy dysk jest prawie pełny."),
-        CoachStep(anchor: "locations", symbol: "plus.circle", title: "Gdzie szukać",
-                  text: "Tu wskazujesz foldery albo dyski: przycisk „Dodaj miejsce” albo przeciągnij folder z Findera."),
-        CoachStep(anchor: "scan", symbol: "magnifyingglass", title: "Szukaj",
-                  text: "Start skanu. Skan tylko czyta — nic nie usuwam ani nie przenoszę bez Twojego potwierdzenia w osobnym oknie."),
-        CoachStep(anchor: nil, symbol: "gearshape", title: "Ustawienia i pomoc",
-                  text: "Zębatka w prawym górnym rogu okna otwiera Ustawienia (⌘,), a „?” obok — ten samouczek."),
-        CoachStep(anchor: nil, symbol: "menubar.rectangle", title: "Ikona w pasku menu",
-                  text: "Przy zegarze jest ikona DupliKAT. Kliknięcie otwiera albo chowa okno, prawy przycisk — menu z regułami. Escape też chowa okno; DupliKAT działa dalej w tle."),
+        CoachStep(anchor: "mode-duplicates", symbol: "doc.on.doc", title: T("Szukaj duplikatów"),
+                  text: T("Trzy sposoby: identyczne pliki (Duplikaty), ten sam obraz w innym rozmiarze albo serie zdjęć (Podobne zdjęcia) i ten sam materiał w innym eksporcie (Podobne wideo i audio).")),
+        CoachStep(anchor: "mode-transfer", symbol: "sdcard", title: T("Karty z aparatu"),
+                  text: T("Podłączasz kartę i widzisz, co z niej jest już zgrane (i w jakim folderze), a czego nie ma nigdzie. Zaznaczasz pliki → Skopiuj albo Przenieś.")),
+        CoachStep(anchor: "mode-backup", symbol: "arrow.left.arrow.right", title: T("Porównaj foldery"),
+                  text: T("Czy wszystko z jednego miejsca jest w drugim? Np. folder roboczy vs dysk z archiwum. Tu też zapisujesz stałe pary, które porównujesz regularnie.")),
+        CoachStep(anchor: "mode-system", symbol: "gauge.with.dots.needle.67percent", title: T("Miejsce na dysku"),
+                  text: T("Pliki montażowe (rendery, podglądy, proxy i cache z Final Cut, Premiere, DaVinci, CapCut) i Dane systemowe — co po cichu zjada miejsce. Niczego tam nie usuwam sam.")),
+        CoachStep(anchor: "disks", symbol: "internaldrive", title: T("Twoje dyski"),
+                  text: T("Ile miejsca zostało na każdym podłączonym dysku. Pasek robi się czerwony, gdy dysk jest prawie pełny.")),
+        CoachStep(anchor: "locations", symbol: "plus.circle", title: T("Gdzie szukać"),
+                  text: T("Tu wskazujesz foldery albo dyski: przycisk „Dodaj miejsce” albo przeciągnij folder z Findera.")),
+        CoachStep(anchor: "scan", symbol: "magnifyingglass", title: T("Szukaj"),
+                  text: T("Start skanu. Skan tylko czyta — nic nie usuwam ani nie przenoszę bez Twojego potwierdzenia w osobnym oknie.")),
+        CoachStep(anchor: nil, symbol: "gearshape", title: T("Ustawienia i pomoc"),
+                  text: T("Zębatka w prawym górnym rogu okna otwiera Ustawienia (⌘,), a „?” obok — ten samouczek.")),
+        CoachStep(anchor: nil, symbol: "menubar.rectangle", title: T("Ikona w pasku menu"),
+                  text: T("Przy zegarze jest ikona DupliKAT. Kliknięcie otwiera albo chowa okno, prawy przycisk — menu z regułami. Escape też chowa okno; DupliKAT działa dalej w tle.")),
     ]
 }
 
@@ -198,7 +211,7 @@ struct ConfirmSheet: View {
                     .font(.system(size: 22)).foregroundStyle(action.style == .destructive ? Theme.warn : Theme.accent.primary)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(action.title).font(.system(size: 15, weight: .semibold))
-                    Text("Razem \(Fmt.bytes(action.totalSize))").font(.system(size: 12)).foregroundStyle(.secondary).monospacedDigit()
+                    Text(T("Razem %@", "\(Fmt.bytes(action.totalSize))")).font(.system(size: 12)).foregroundStyle(.secondary).monospacedDigit()
                 }
             }
             ScrollView {
@@ -232,8 +245,8 @@ struct ConfirmSheet: View {
             }
             HStack {
                 Spacer()
-                Button("Anuluj") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button(action.verb.replacingOccurrences(of: "Przenoszę", with: "Przenieś").replacingOccurrences(of: "Kopiuję", with: "Kopiuj").replacingOccurrences(of: "Tworzę", with: "Utwórz")) {
+                Button(T("Anuluj")) { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(action.verb.replacingOccurrences(of: T("Przenoszę"), with: T("Przenieś")).replacingOccurrences(of: T("Kopiuję"), with: T("Kopiuj")).replacingOccurrences(of: T("Tworzę"), with: T("Utwórz"))) {
                     app.run(action)
                 }
                 .buttonStyle(.borderedProminent)
@@ -243,5 +256,17 @@ struct ConfirmSheet: View {
         }
         .padding(20)
         .frame(width: 560)
+    }
+}
+
+/// Wiersz dysku w pasku bocznym jako przycisk — podświetlony, gdy jego ekran jest otwarty.
+struct DriveButtonStyle: ButtonStyle {
+    let selected: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 6).padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(selected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(configuration.isPressed ? 0.08 : 0)))
+            .contentShape(Rectangle())
     }
 }

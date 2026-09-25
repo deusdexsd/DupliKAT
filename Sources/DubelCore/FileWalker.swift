@@ -12,6 +12,8 @@ public struct WalkOptions: Sendable {
     public var log: ScanLog?
     /// Nazwy folderów pomijanych w tym skanie (np. miniatury i baza aparatu na karcie).
     public var skipFolderNames: Set<String> = []
+    /// Czy wchodzić do podfolderów (domyślnie tak — foldery w folderach liczą się wszędzie).
+    public var recursive = true
 
     public init(minSize: Int64 = 1, includeHidden: Bool = false, excludedPaths: [String] = [], kinds: Set<MediaKind>? = nil, log: ScanLog? = nil) {
         self.minSize = minSize; self.includeHidden = includeHidden; self.excludedPaths = excludedPaths; self.kinds = kinds; self.log = log
@@ -94,6 +96,7 @@ public enum FileWalker {
                 let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
                 if values?.isSymbolicLink == true { continue }
                 if values?.isDirectory == true {
+                    if !options.recursive { en.skipDescendants(); continue }
                     if isExcluded(url.path, options.excludedPaths) || options.skipFolderNames.contains(url.lastPathComponent) { en.skipDescendants() }
                     else if isProtected(url) { options.log?.skip(url, .protected); en.skipDescendants() }
                     continue

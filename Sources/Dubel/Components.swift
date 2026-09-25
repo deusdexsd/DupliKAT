@@ -20,7 +20,7 @@ struct LocationsCard: View {
             Card(padding: 10, radius: 10) {
                 VStack(alignment: .leading, spacing: 8) {
                     if urls.isEmpty {
-                        Label(hint ?? "Nic jeszcze nie wybrano — dodaj folder albo dysk", systemImage: "tray")
+                        Label(hint ?? T("Nic jeszcze nie wybrano — dodaj folder albo dysk"), systemImage: "tray")
                             .font(.system(size: 12)).foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                     } else {
@@ -30,27 +30,27 @@ struct LocationsCard: View {
                     }
                     HStack(spacing: 8) {
                         Menu {
-                            Button { urls = merged(urls + FileActions.chooseFolder(title: title, prompt: "Dodaj", multiple: true)) } label: {
-                                Label("Wybierz folder lub dysk…", systemImage: "folder.badge.plus")
+                            Button { urls = merged(urls + FileActions.chooseFolder(title: title, prompt: T("Dodaj"), multiple: true)) } label: {
+                                Label(T("Wybierz folder lub dysk…"), systemImage: "folder.badge.plus")
                             }
                             let places = app.quickPlaces
-                            Section("Dyski") {
+                            Section(T("Dyski")) {
                                 ForEach(places.filter { $0.symbol == "externaldrive" }, id: \.url) { p in
                                     Button { urls = merged(urls + [p.url]) } label: { Label(p.title, systemImage: p.symbol) }
                                 }
                             }
-                            Section("Foldery") {
+                            Section(T("Foldery")) {
                                 ForEach(places.filter { $0.symbol != "externaldrive" }, id: \.url) { p in
                                     Button { urls = merged(urls + [p.url]) } label: { Label(p.title, systemImage: p.symbol) }
                                 }
                             }
-                        } label: { Label("Dodaj miejsce", systemImage: "plus") }
+                        } label: { Label(T("Dodaj miejsce"), systemImage: "plus") }
                             .fixedSize()
-                            .help("Wybierz folder albo dysk — możesz też przeciągnąć folder z Findera")
-                        Text("albo przeciągnij tu folder z Findera").font(.system(size: 11)).foregroundStyle(.tertiary)
+                            .help(T("Wybierz folder albo dysk — możesz też przeciągnąć folder z Findera"))
+                        Text(T("albo przeciągnij tu folder z Findera")).font(.system(size: 11)).foregroundStyle(.tertiary)
                         Spacer()
                         if !urls.isEmpty {
-                            Button("Wyczyść") { urls = [] }.buttonStyle(.borderless).foregroundStyle(.secondary)
+                            Button(T("Wyczyść")) { urls = [] }.buttonStyle(.borderless).foregroundStyle(.secondary)
                         }
                     }
                     .controlSize(.small)
@@ -87,7 +87,7 @@ struct LocationChip: View {
             }
             Button(action: onRemove) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)) }
                 .buttonStyle(.plain).foregroundStyle(.secondary).opacity(hover ? 1 : 0.5)
-                .accessibilityLabel("Usuń \(url.lastPathComponent)").help("Usuń z listy")
+                .accessibilityLabel(T("Usuń %@", "\(url.lastPathComponent)")).help(T("Usuń z listy"))
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
         .background(Capsule().fill(Color.primary.opacity(hover ? 0.09 : 0.06)))
@@ -112,26 +112,26 @@ struct ProgressCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small)
-                    Text(progress.phase.rawValue).font(.system(size: 13, weight: .semibold))
+                    Text(T(progress.phase.rawValue)).font(.system(size: 13, weight: .semibold))
                     Spacer()
                     Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).monospacedDigit()
-                    Button("Przerwij", action: onCancel).controlSize(.small)
+                    Button(T("Przerwij"), action: onCancel).controlSize(.small)
                 }
                 if let f = progress.fraction { ProgressView(value: f).tint(Theme.accent.primary) } else { ProgressView().progressViewStyle(.linear).tint(Theme.accent.primary) }
                 HStack(spacing: 10) {
                     Image(systemName: "doc").font(.system(size: 10)).foregroundStyle(.tertiary)
-                    Text(progress.current.isEmpty ? "…" : Fmt.path(progress.current))
+                    Text(progress.current.isEmpty ? T("…") : Fmt.path(progress.current))
                         .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                         .textSelection(.enabled)
                     Spacer(minLength: 8)
                     Text(speed).font(.system(size: 11)).foregroundStyle(.secondary).monospacedDigit().fixedSize()
                     if let log, log.count > 0 {
                         Button { showSkipped = true } label: {
-                            Label("Pominięto \(log.count)", systemImage: "eye.slash").font(.system(size: 11))
+                            Label(T("Pominięto %@", "\(log.count)"), systemImage: "eye.slash").font(.system(size: 11))
                         }
                         .buttonStyle(.borderless)
                         .popover(isPresented: $showSkipped) { SkippedList(log: log) }
-                        .help("Co zostało pominięte i dlaczego")
+                        .help(T("Co zostało pominięte i dlaczego"))
                     }
                 }
             }
@@ -157,14 +157,14 @@ struct ProgressCard: View {
         let dt = b.t.timeIntervalSince(a.t)
         if progress.bytesTotal > 0 {
             let rate = Double(b.bytes - a.bytes) / dt
-            guard rate > 0 else { return "czekam na dysk…" }
+            guard rate > 0 else { return T("czekam na dysk…") }
             let left = Double(progress.bytesTotal - progress.bytesDone) / rate
             return "\(Fmt.bytes(Int64(rate)))/s · \(Fmt.eta(left))"
         }
         let rate = Double(b.done - a.done) / dt
-        guard rate > 0 else { return dt > 3 ? "czekam na dysk…" : "" }
+        guard rate > 0 else { return dt > 3 ? T("czekam na dysk…") : "" }
         let left = progress.total > 0 ? " · \(Fmt.eta(Double(progress.total - progress.done) / rate))" : ""
-        return "\(Int(rate.rounded())) plików/s" + left
+        return T("%@ plików/s", "\(Int(rate.rounded()))") + left
     }
 }
 
@@ -173,10 +173,10 @@ struct SkippedList: View {
     var body: some View {
         let all = log.all
         VStack(alignment: .leading, spacing: 8) {
-            Text("Pominięte (\(all.count))").font(.system(size: 13, weight: .semibold))
+            Text(T("Pominięte (%@)", "\(all.count)")).font(.system(size: 13, weight: .semibold))
             ForEach(ScanLog.Reason.allCases, id: \.self) { r in
                 let n = all.filter { $0.reason == r }.count
-                if n > 0 { Text("\(r.rawValue): \(n)").font(.system(size: 11.5)).foregroundStyle(.secondary) }
+                if n > 0 { Text("\(T(r.rawValue)): \(n)").font(.system(size: 11.5)).foregroundStyle(.secondary) }
             }
             Divider()
             ScrollView {
@@ -188,12 +188,12 @@ struct SkippedList: View {
                             Text(Fmt.path(e.path)).font(.system(size: 11)).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                         }
                     }
-                    if all.count > 500 { Text("…i \(all.count - 500) więcej").font(.system(size: 11)).foregroundStyle(.tertiary) }
+                    if all.count > 500 { Text(T("…i %@ więcej", "\(all.count - 500)")).font(.system(size: 11)).foregroundStyle(.tertiary) }
                 }
             }
             .frame(height: 260)
             if all.contains(where: { $0.reason == .iCloud }) {
-                Text("Pliki trzymane tylko w iCloud są pomijane celowo: odczyt wymusiłby pobieranie ich na dysk.")
+                Text(T("Pliki trzymane tylko w iCloud są pomijane celowo: odczyt wymusiłby pobieranie ich na dysk."))
                     .font(.system(size: 10.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -274,18 +274,22 @@ final class ThumbnailCache {
 struct Thumbnail: View {
     let url: URL
     var size: CGFloat = 34
+    /// Wysokość inna niż szerokość (kafelki siatki). nil = kwadrat.
+    var height: CGFloat? = nil
+    var radius: CGFloat = 6
     @State private var image: NSImage?
 
     var body: some View {
+        let h = height ?? size
         ZStack {
-            RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.06))
+            RoundedRectangle(cornerRadius: radius, style: .continuous).fill(Color.primary.opacity(0.06))
             if let image {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
-                    .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .frame(width: size, height: h).clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             }
         }
-        .frame(width: size, height: size)
-        .task(id: url) { image = await ThumbnailCache.shared.image(for: url, size: size) }
+        .frame(width: size, height: h)
+        .task(id: url) { image = await ThumbnailCache.shared.image(for: url, size: max(size, h)) }
     }
 }
 
@@ -349,7 +353,7 @@ struct ScanButton: View {
             .disabled(!enabled)
             .opacity(enabled ? 1 : 0.5)
             .keyboardShortcut("r", modifiers: .command)
-            .help("Szukaj (⌘R)")
+            .help(T("Szukaj (⌘R)"))
             .coachAnchor("scan")
     }
 }
@@ -363,11 +367,11 @@ struct StatusFooter: View {
         case .finished(let d):
             HStack(spacing: 8) {
                 if let log, log.count > 0 {
-                    Button { showSkipped = true } label: { Label("pominięto \(log.count)", systemImage: "eye.slash") }
+                    Button { showSkipped = true } label: { Label(T("pominięto %@", "\(log.count)"), systemImage: "eye.slash") }
                         .buttonStyle(.borderless).font(.system(size: 10.5)).foregroundStyle(.secondary)
                         .popover(isPresented: $showSkipped) { SkippedList(log: log) }
                 }
-                Text("Sprawdzono \(d.formatted(date: .omitted, time: .shortened))").font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                Text(T("Sprawdzono %@", "\(d.formatted(date: .omitted, time: .shortened))")).font(.system(size: 10.5)).foregroundStyle(.tertiary)
             }
         case .failed(let e): Label(e, systemImage: "exclamationmark.triangle").font(.system(size: 11)).foregroundStyle(Theme.missing)
         default: EmptyView()

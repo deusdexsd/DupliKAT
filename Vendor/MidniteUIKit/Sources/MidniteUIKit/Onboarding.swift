@@ -1,5 +1,11 @@
 import SwiftUI
 
+/// Tłumaczenie stałych napisów kitu (Wstecz, Dalej, Pomiń…). Aplikacja podłącza tu swój słownik; domyślnie po polsku.
+public enum KitText {
+    nonisolated(unsafe) public static var translate: (String) -> String = { $0 }
+    public static func t(_ s: String) -> String { translate(s) }
+}
+
 // MARK: - Klocki przewodnika pierwszego uruchomienia (wyjęte z DupliKAT, 2026-09-24)
 //
 // Użycie w skrócie:
@@ -175,13 +181,17 @@ public struct OnboardingScaffold<Page: View>: View {
     var nextTitle: (Int) -> String
     let onFinish: () -> Void
     var onSkip: (() -> Void)?
+    var backTitle: String
+    var skipTitle: String
     let page: (Int) -> Page
     @State private var forward = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(step: Binding<Int>, count: Int, nextTitle: @escaping (Int) -> String = { _ in "Dalej" },
-                onFinish: @escaping () -> Void, onSkip: (() -> Void)? = nil, @ViewBuilder page: @escaping (Int) -> Page) {
-        self._step = step; self.count = count; self.nextTitle = nextTitle; self.onFinish = onFinish; self.onSkip = onSkip; self.page = page
+    public init(step: Binding<Int>, count: Int, nextTitle: @escaping (Int) -> String = { _ in KitText.t("Dalej") },
+                onFinish: @escaping () -> Void, onSkip: (() -> Void)? = nil,
+                backTitle: String = KitText.t("Wstecz"), skipTitle: String = KitText.t("Pomiń — ustawię później"), @ViewBuilder page: @escaping (Int) -> Page) {
+        self._step = step; self.count = count; self.nextTitle = nextTitle; self.onFinish = onFinish; self.onSkip = onSkip
+        self.backTitle = backTitle; self.skipTitle = skipTitle; self.page = page
     }
 
     public var body: some View {
@@ -205,9 +215,9 @@ public struct OnboardingScaffold<Page: View>: View {
     var footer: some View {
         HStack {
             if step > 0 {
-                Button("Wstecz") { go(-1) }.noFocusRing()
+                Button(backTitle) { go(-1) }.noFocusRing()
             } else if let onSkip {
-                Button("Pomiń — ustawię później", action: onSkip).buttonStyle(.borderless).foregroundStyle(.secondary).noFocusRing()
+                Button(skipTitle, action: onSkip).buttonStyle(.borderless).foregroundStyle(.secondary).noFocusRing()
             }
             Spacer()
             Button { step == count - 1 ? onFinish() : go(1) } label: { Text(nextTitle(step)).frame(minWidth: 90) }
@@ -307,8 +317,8 @@ struct CoachMarksModifier: ViewModifier {
             HStack {
                 Text("\(index + 1) / \(steps.count)").font(.system(size: 11)).foregroundStyle(.tertiary).monospacedDigit()
                 Spacer()
-                Button("Pomiń") { finish() }.buttonStyle(.borderless).foregroundStyle(.secondary)
-                Button(index == steps.count - 1 ? "Gotowe" : "Dalej") { next() }.buttonStyle(GradientButtonStyle()).keyboardShortcut(.defaultAction)
+                Button(KitText.t("Pomiń")) { finish() }.buttonStyle(.borderless).foregroundStyle(.secondary)
+                Button(KitText.t(index == steps.count - 1 ? "Gotowe" : "Dalej")) { next() }.buttonStyle(GradientButtonStyle()).keyboardShortcut(.defaultAction)
             }
         }
         .padding(16)

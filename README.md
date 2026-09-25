@@ -1,9 +1,9 @@
 # DupliKAT
 
 Natywna aplikacja macOS do porządków na dyskach twórcy wideo: duplikaty, karty z aparatu, kopie zapasowe
-i pliki robocze programów do montażu. Napisana w SwiftUI, po polsku.
+i pliki robocze programów do montażu. Napisana w SwiftUI, po polsku i po angielsku (wybór języka w pierwszym kroku przewodnika).
 
-*A native macOS app (Polish UI) for video creators: finds duplicates, tells you what from a camera card is
+*A native macOS app (Polish and English UI) for video creators: finds duplicates, tells you what from a camera card is
 already backed up and where, compares folders, and shows editor render/proxy/cache files — it never deletes
 or copies anything without your confirmation.*
 
@@ -28,6 +28,7 @@ z karty automatycznie”, którą włączasz sam — i ona tylko dodaje pliki, n
 | **Podobne wideo i audio** | Ten sam materiał w innym eksporcie, kodeku lub rozdzielczości |
 | **Karty z aparatu** | Co z karty jest już zgrane (i w jakim folderze), a czego nie ma nigdzie → „Skopiuj do…” / „Przenieś do…” |
 | **Porównaj foldery** | Czy wszystko z A jest w B (po zawartości), zapisane pary, dogrywanie brakujących, lustro |
+| **Dyski** | Klik w dysk: miejsce, model i prędkość łącza (USB/Thunderbolt), rola backupu, akcje i historia działań |
 | **Pliki montażowe** | Rendery, podglądy, proxy i cache z Final Cut Pro, Premiere Pro / After Effects, DaVinci Resolve i CapCut |
 | **Dane systemowe** | Co po cichu zajmuje miejsce (cache, symulatory, kopie iPhone'a) — tylko podgląd |
 
@@ -37,7 +38,13 @@ Bezpieczeństwo:
 - pliki trzymane tylko w iCloud są pomijane (odczyt wymusiłby pobieranie);
 - kopie są sprawdzane bajt po bajcie; kopiowanie nigdy nie nadpisuje.
 
-Do tego: ikona w pasku menu (klik = okno, prawy klik = menu reguł), reguły po podłączeniu karty/dysku,
+Backupy i ich kopie: oznaczasz dysk jako „backup” (np. M), a inny jako „kopia backupu M” (np. M2) — przy każdym pliku
+widać, na ilu dyskach jest, a DupliKAT liczy, co dograć na kopię (z zachowaniem folderów). Zapamiętuje listę plików
+dysków (bez treści), więc kopia na odłączonym dysku też się liczy.
+
+Wyniki w trzech widokach: lista, kompaktowa lista i siatka miniatur.
+
+Do tego: ikona w pasku menu (klik = okienko ze statusem, procentem i szybkimi akcjami, dwuklik = okno, prawy klik = menu reguł), reguły po podłączeniu karty/dysku,
 alarm zajętego miejsca, przewodnik pierwszego uruchomienia i samouczek „co jest co”.
 
 ## Skróty i Stream Deck
@@ -46,7 +53,7 @@ Globalne skróty (Ustawienia → Skróty) i adresy do wklejenia w Stream Decku (
 
 | Adres | Co robi |
 |---|---|
-| `duplikat://check-selection` | Sprawdza folder/kartę zaznaczone w Finderze (w tle, postęp w pasku menu) |
+| `duplikat://check-selection` | Sprawdza, czy pliki/foldery zaznaczone w Finderze mają gdzieś kopię (w tle, postęp i wynik w pasku menu) |
 | `duplikat://check-card` | Sprawdza podłączoną kartę |
 | `duplikat://duplicates-selection` | Szuka duplikatów w zaznaczonym folderze |
 | `duplikat://toggle` | Pokazuje / chowa okno |
@@ -63,7 +70,7 @@ Wymaga macOS 14 lub nowszego (Apple Silicon i Intel).
 ## Budowanie
 
 ```bash
-swift test                 # testy silnika (DubelCore)
+swift test --scratch-path ~/Library/Caches/DubelBuild/test   # testy silnika (DubelCore)
 ./dev-run.sh               # uruchomienie deweloperskie (osobne ustawienia)
 ./make-dmg.sh              # wersja uniwersalna → dist/DupliKAT.dmg
 ```

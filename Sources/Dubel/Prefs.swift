@@ -9,25 +9,25 @@ enum Sensitivity: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .strict: return "Ścisłe"
-        case .normal: return "Normalne"
-        case .loose: return "Luźne"
+        case .strict: return T("Ścisłe")
+        case .normal: return T("Normalne")
+        case .loose: return T("Luźne")
         }
     }
 
     func photoHint() -> String {
         switch self {
-        case .strict: return "Ten sam obraz w innym rozmiarze, jakości lub formacie."
-        case .normal: return "Jak wyżej + kolejne zdjęcia z serii (to samo ujęcie)."
-        case .loose: return "Jak wyżej + warianty i małe miniatury. Przeglądaj uważnie."
+        case .strict: return T("Ten sam obraz w innym rozmiarze, jakości lub formacie.")
+        case .normal: return T("Jak wyżej + kolejne zdjęcia z serii (to samo ujęcie).")
+        case .loose: return T("Jak wyżej + warianty i małe miniatury. Przeglądaj uważnie.")
         }
     }
 
     func mediaHint() -> String {
         switch self {
-        case .strict: return "Ten sam materiał, inny kodek lub rozdzielczość."
-        case .normal: return "Jak wyżej + eksporty z lekką korekcją koloru."
-        case .loose: return "Jak wyżej + wersje z innym gradingiem lub napisami. Przeglądaj uważnie."
+        case .strict: return T("Ten sam materiał, inny kodek lub rozdzielczość.")
+        case .normal: return T("Jak wyżej + eksporty z lekką korekcją koloru.")
+        case .loose: return T("Jak wyżej + wersje z innym gradingiem lub napisami. Przeglądaj uważnie.")
         }
     }
 
@@ -43,12 +43,18 @@ final class Prefs: ObservableObject {
 
     @Published var minSizeMB: Double { didSet { Self.defaults.set(minSizeMB, forKey: "minSizeMB") } }
     @Published var includeHidden: Bool { didSet { Self.defaults.set(includeHidden, forKey: "includeHidden") } }
+    /// Wchodź do podfolderów wybranych miejsc (domyślnie tak).
+    @Published var includeSubfolders: Bool { didSet { Self.defaults.set(includeSubfolders, forKey: "includeSubfolders") } }
     @Published var excludedPaths: [String] { didSet { Self.defaults.set(excludedPaths, forKey: "excludedPaths") } }
     @Published var quickMode: Bool { didSet { Self.defaults.set(quickMode, forKey: "quickMode") } }
     @Published var photoSensitivity: Sensitivity { didSet { Self.defaults.set(photoSensitivity.rawValue, forKey: "photoSensitivity") } }
     @Published var mediaSensitivity: Sensitivity { didSet { Self.defaults.set(mediaSensitivity.rawValue, forKey: "mediaSensitivity") } }
     @Published var backupVerify: Bool { didSet { Self.defaults.set(backupVerify, forKey: "backupVerify") } }
     @Published var useCache: Bool { didSet { Self.defaults.set(useCache, forKey: "useCache") } }
+    /// Widok wyników: „list” (duże wiersze), „compact” (gęsta lista), „grid” (siatka miniatur).
+    @Published var resultsLayout: String { didSet { Self.defaults.set(resultsLayout, forKey: "resultsLayout") } }
+    /// Wielkość kafelka w siatce (pt).
+    @Published var gridTile: Double { didSet { Self.defaults.set(gridTile, forKey: "gridTile") } }
     /// Reguły automatyczne, cele zgrywania, alarmy, pasek menu. Wszystko domyślnie wyłączone — ustawiane w przewodniku albo w Ustawieniach.
     @Published var auto: Automation { didSet { if let d = try? JSONEncoder().encode(auto) { Self.defaults.set(d, forKey: "automation") } } }
 
@@ -56,6 +62,9 @@ final class Prefs: ObservableObject {
         let d = Self.defaults
         minSizeMB = d.object(forKey: "minSizeMB") as? Double ?? 1
         includeHidden = d.bool(forKey: "includeHidden")
+        includeSubfolders = d.object(forKey: "includeSubfolders") as? Bool ?? true
+        resultsLayout = d.string(forKey: "resultsLayout") ?? "list"
+        gridTile = d.object(forKey: "gridTile") as? Double ?? 170
         excludedPaths = d.stringArray(forKey: "excludedPaths") ?? []
         quickMode = d.bool(forKey: "quickMode")
         photoSensitivity = Sensitivity(rawValue: d.object(forKey: "photoSensitivity") == nil ? 1 : d.integer(forKey: "photoSensitivity")) ?? .normal
@@ -66,7 +75,9 @@ final class Prefs: ObservableObject {
     }
 
     func walk(minSize: Int64? = nil, log: ScanLog? = nil) -> WalkOptions {
-        WalkOptions(minSize: minSize ?? Int64(minSizeMB * 1_000_000), includeHidden: includeHidden, excludedPaths: excludedPaths + [AppPaths.support.path], log: log)
+        var w = WalkOptions(minSize: minSize ?? Int64(minSizeMB * 1_000_000), includeHidden: includeHidden, excludedPaths: excludedPaths + [AppPaths.support.path], log: log)
+        w.recursive = includeSubfolders
+        return w
     }
 
     static func paths(_ key: String) -> [URL] { (defaults.stringArray(forKey: key) ?? []).map { URL(fileURLWithPath: $0) } }
@@ -127,8 +138,12 @@ struct Automation: Codable, Equatable {
     var cardMinSizeMB: Double = 0
     /// Porównanie karty z archiwum bajt po bajcie (wolno przez USB). Domyślnie: rozmiar + fragmenty.
     var cardExact = false
+    /// Ostrzeżenie z danymi karty przed otwarciem Narzędzia dyskowego (to zaznacza na starcie dysk główny).
+    var formatWarnings = true
     var cardAutoFolder: String?
     // Wygląd i działanie
+    /// „pl” albo „en”. Pierwszy krok przewodnika.
+    var language = Locale.preferredLanguages.first?.hasPrefix("pl") == false ? "en" : "pl"
     var appIcon = "kat1"
     var hotkeyCheck: HotKeySpec?
     var hotkeyWindow: HotKeySpec?
@@ -143,6 +158,14 @@ struct Automation: Codable, Equatable {
     var showInDock = true
     var launchAtLogin = false
     var onboardingDone = false
+    /// Model, złącze i prędkość łącza przy dyskach (okno i pasek menu).
+    var showDriveDetails = true
+    /// Własne opisy dysków zamiast nazwy od producenta („SanDisk PSSD…” → „SanDisk 4 TB”). Klucz: UUID woluminu albo nazwa.
+    var driveLabels: [String: String] = [:]
+    /// Pamiętaj zawartość dysków (lista plików), żeby wiedzieć o kopiach na odłączonych dyskach.
+    var rememberDrives = true
+    /// Role dysków: „backup” (M) i „kopia backupu” (M2), może być kilka par. Klucz: UUID woluminu albo nazwa.
+    var driveRoles: [String: DriveRole] = [:]
 
     init() {}
 
@@ -175,7 +198,9 @@ struct Automation: Codable, Equatable {
         cardMediaOnly = v(.cardMediaOnly, d.cardMediaOnly)
         cardMinSizeMB = v(.cardMinSizeMB, d.cardMinSizeMB)
         cardExact = v(.cardExact, d.cardExact)
+        formatWarnings = v(.formatWarnings, d.formatWarnings)
         cardAutoFolder = v(.cardAutoFolder, d.cardAutoFolder)
+        language = v(.language, d.language)
         appIcon = v(.appIcon, d.appIcon)
         hotkeyCheck = v(.hotkeyCheck, d.hotkeyCheck)
         hotkeyWindow = v(.hotkeyWindow, d.hotkeyWindow)
@@ -188,6 +213,10 @@ struct Automation: Codable, Equatable {
         showInDock = v(.showInDock, d.showInDock)
         launchAtLogin = v(.launchAtLogin, d.launchAtLogin)
         onboardingDone = v(.onboardingDone, d.onboardingDone)
+        showDriveDetails = v(.showDriveDetails, d.showDriveDetails)
+        driveLabels = v(.driveLabels, d.driveLabels)
+        rememberDrives = v(.rememberDrives, d.rememberDrives)
+        driveRoles = v(.driveRoles, d.driveRoles)
     }
 
     /// Gdzie szukać kopii plików z karty. Domyślnie: wszystkie podłączone dyski (poza samą kartą) + typowe foldery.

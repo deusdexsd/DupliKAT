@@ -68,10 +68,12 @@ enum Notifier {
     }
 
     /// `mode` — który ekran otworzyć po kliknięciu w powiadomienie.
-    static func send(_ title: String, _ body: String, mode: Mode? = nil) {
+    static func send(_ title: String, _ body: String, mode: Mode? = nil, userInfo: [String: String] = [:]) {
         let c = UNMutableNotificationContent()
         c.title = title; c.body = body
-        if let mode { c.userInfo = ["mode": mode.rawValue] }
+        var info = userInfo
+        if let mode { info["mode"] = mode.rawValue }
+        c.userInfo = info
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
     }
 }
@@ -98,19 +100,34 @@ final class AutomationEngine {
                 self?.volumeMounted(url)
             }
         }
+        nc.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: .main) { [weak self] n in
+            guard let url = n.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+            Task { @MainActor in self?.volumeUnmounted(url) }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in Task { @MainActor in self?.tick() } }
-        Task { try? await Task.sleep(for: .seconds(20)); tick() }
+        Task { try? await Task.sleep(for: .seconds(20)); tick(); app.drives.rememberAllMounted() }
     }
 
     private var auto: Automation { app.prefs.auto }
 
     func volumeMounted(_ url: URL) {
         app.refreshVolumes()
+        // Odśwież zapamiętaną zawartość dysku (tylko lista plików, w tle).
+        if let v = app.volumes.first(where: { $0.url.standardizedFileURL == url.standardizedFileURL }) {
+            app.drives.log(v.key, "cable.connector", T("Podłączono (wolne %@)", "\(Fmt.bytes(v.free))"))
+            app.drives.remember(v, force: true)
+        }
         let name = url.lastPathComponent
         // 1. Karta z aparatu → „co jest zgrane i gdzie” (tylko odczyt; kopiujesz/przenosisz sam).
         if auto.cardImportEnabled, CameraCard.isCard(url) {
             app.transfer.startCard(url, automatic: true)
             app.showMainWindow?()
+            return
+        }
+        // Karta bez włączonej reguły: tylko powiadomienie z pytaniem (kliknięcie = sprawdź).
+        if CameraCard.isCard(url) {
+            Notifier.send(T("Podłączono kartę „%@”", "\(name)"), T("Kliknij, żeby sprawdzić, co z niej jest już zgrane i gdzie."), userInfo: ["checkCard": url.path])
+            if let c = app.transfer.card, c.ejected, c.card.lastPathComponent == name { app.transfer.closeCard() }
             return
         }
         // 2. Sprawdź duplikaty na tym dysku (tylko odczyt).
@@ -119,8 +136,8 @@ final class AutomationEngine {
             app.duplicates.onFinish = { [weak self] in
                 guard let self else { return }
                 let g = self.app.duplicates.groups
-                Notifier.send("Dysk „\(name)” sprawdzony",
-                              g.isEmpty ? "Brak duplikatów." : "\(Fmt.groups(g.count)) duplikatów, do odzyskania \(Fmt.bytes(self.app.duplicates.reclaimable)). Nic nie zostało usunięte.",
+                Notifier.send(T("Dysk „%@” sprawdzony", "\(name)"),
+                              g.isEmpty ? T("Brak duplikatów.") : T("%@ duplikatów, do odzyskania %@. Nic nie zostało usunięte.", "\(Fmt.groups(g.count))", "\(Fmt.bytes(self.app.duplicates.reclaimable))"),
                               mode: .duplicates)
             }
             app.duplicates.start()
@@ -132,6 +149,17 @@ final class AutomationEngine {
         }
     }
 
+    /// Karta wysunięta: widok zostaje jako ostatni stan z banerem „wysunięto”.
+    func volumeUnmounted(_ url: URL) {
+        app.refreshVolumes()
+        if let c = app.transfer.card, c.card.standardizedFileURL.path == url.standardizedFileURL.path || c.card.path.hasPrefix(url.path + "/") {
+            c.cancel()
+            c.ejected = true
+            if case .checking = c.stage { c.stage = .failed(T("Karta została wysunięta w trakcie sprawdzania.")) }
+            Notifier.send(T("Wysunięto „%@”", "\(url.lastPathComponent)"), T("Widok karty zostaje jako ostatni stan — zamkniesz go przyciskiem „Zamknij”."), mode: .transfer)
+        }
+    }
+
     func runPairCompare(_ p: ComparePair, notify: Bool) {
         guard !app.backup.status.isRunning else { return }
         app.backup.sources = [URL(fileURLWithPath: p.source)]
@@ -139,8 +167,8 @@ final class AutomationEngine {
         if notify {
             app.backup.onFinish = { [weak self] in
                 guard let r = self?.app.backup.report else { return }
-                Notifier.send("„\(p.name)” porównane",
-                              r.missing.isEmpty ? "Wszystko jest w archiwum (\(Fmt.files(r.backedUp.count)))." : "Brakuje w archiwum: \(Fmt.files(r.missing.count)) (\(Fmt.bytes(r.missing.reduce(0) { $0 + $1.file.size }))).",
+                Notifier.send(T("„%@” porównane", "\(p.name)"),
+                              r.missing.isEmpty ? T("Wszystko jest w archiwum (%@).", "\(Fmt.files(r.backedUp.count))") : T("Brakuje w archiwum: %@ (%@).", "\(Fmt.files(r.missing.count))", "\(Fmt.bytes(r.missing.reduce(0) { $0 + $1.file.size }))"),
                               mode: .backup)
             }
         } else { app.mode = .backup }
@@ -156,9 +184,9 @@ final class AutomationEngine {
                 guard !alarms.isEmpty else { return }
                 let top = alarms.prefix(3).map { a in
                     let grew = (a.delta ?? 0) > 0 ? "+\(Fmt.bytes(a.delta ?? 0))" : ""
-                    return "\(a.spot.title) \(grew)" + (a.newBigFiles.isEmpty ? "" : " (nowy duży plik)")
+                    return "\(a.spot.title) \(grew)" + (a.newBigFiles.isEmpty ? "" : T(" (nowy duży plik)"))
                 }.joined(separator: ", ")
-                Notifier.send("Coś nagle zajmuje miejsce", top, mode: .system)
+                Notifier.send(T("Coś nagle zajmuje miejsce"), top, mode: .system)
             }
         }
     }
@@ -167,9 +195,9 @@ final class AutomationEngine {
         for v in app.volumes where v.used * 100 >= auto.spaceAlarmPercent {
             if let last = alertedVolumes[v.id], Date().timeIntervalSince(last) < 86_400 { continue }
             alertedVolumes[v.id] = Date()
-            var hint = "Sprawdź duplikaty i pliki Final Cut."
-            if v.url.path == "/", app.fcp.total > 5_000_000_000 { hint = "Same pliki generowane FCP to \(Fmt.bytes(app.fcp.total))." }
-            Notifier.send("Dysk „\(v.name)” zajęty w \(Fmt.percent(v.used))", "Wolne: \(Fmt.bytes(v.free)). \(hint)", mode: v.url.path == "/" ? .fcp : .duplicates)
+            var hint = T("Sprawdź duplikaty i pliki Final Cut.")
+            if v.url.path == "/", app.fcp.total > 5_000_000_000 { hint = T("Same pliki generowane FCP to %@.", "\(Fmt.bytes(app.fcp.total))") }
+            Notifier.send(T("Dysk „%@” zajęty w %@", "\(v.name)", "\(Fmt.percent(v.used))"), T("Wolne: %@.", "\(Fmt.bytes(v.free))") + " \(hint)", mode: v.url.path == "/" ? .fcp : .duplicates)
         }
     }
 
@@ -177,8 +205,8 @@ final class AutomationEngine {
         app.prefs.auto.lastWeeklyReport = Date()
         app.fcp.onFinish = { [weak self] in
             guard let self else { return }
-            let vols = self.app.volumes.map { "\($0.name): wolne \(Fmt.bytes($0.free))" }.joined(separator: " · ")
-            Notifier.send("Tygodniowy przegląd dysków", "Pliki generowane FCP: \(Fmt.bytes(self.app.fcp.total)). \(vols)", mode: .fcp)
+            let vols = self.app.volumes.map { T("%@: wolne %@", "\($0.name)", "\(Fmt.bytes($0.free))") }.joined(separator: " · ")
+            Notifier.send(T("Tygodniowy przegląd dysków"), T("Pliki generowane FCP: %@. %@", "\(Fmt.bytes(self.app.fcp.total))", "\(vols)"), mode: .fcp)
         }
         app.fcp.start()
     }

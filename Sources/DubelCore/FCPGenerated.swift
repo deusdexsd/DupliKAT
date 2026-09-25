@@ -8,14 +8,14 @@ public enum GeneratedKind: String, CaseIterable, Sendable, Codable, Identifiable
 
     public var title: String {
         switch self {
-        case .render: return "Rendery"
-        case .preview: return "Podglądy"
-        case .mediaCache: return "Cache mediów"
-        case .cache: return "Cache"
-        case .proxy: return "Proxy"
-        case .optimized: return "Zoptymalizowane"
-        case .analysis: return "Analiza"
-        case .segmentation: return "Segmentacja"
+        case .render: return CoreText.t("Rendery")
+        case .preview: return CoreText.t("Podglądy")
+        case .mediaCache: return CoreText.t("Cache mediów")
+        case .cache: return CoreText.t("Cache")
+        case .proxy: return CoreText.t("Proxy")
+        case .optimized: return CoreText.t("Zoptymalizowane")
+        case .analysis: return CoreText.t("Analiza")
+        case .segmentation: return CoreText.t("Segmentacja")
         }
     }
 
@@ -35,14 +35,14 @@ public enum GeneratedKind: String, CaseIterable, Sendable, Codable, Identifiable
     /// Co się stanie po usunięciu — pokazywane przy potwierdzeniu.
     public var consequence: String {
         switch self {
-        case .render: return "FCP wyrenderuje ponownie przy odtwarzaniu/eksporcie."
-        case .preview: return "Premiere wyrenderuje podglądy ponownie, gdy będą potrzebne."
-        case .mediaCache: return "Premiere/After Effects odbudują cache i pliki szczytów przy imporcie (pierwsze otwarcie projektu będzie wolniejsze)."
-        case .cache: return "Program odtworzy cache przy odtwarzaniu (pierwsze odtworzenie będzie wolniejsze)."
-        case .proxy: return "Jeśli montujesz na proxy, trzeba je utworzyć ponownie w programie."
-        case .optimized: return "Program wróci do oryginałów; zoptymalizowane media można utworzyć ponownie."
-        case .analysis: return "Analiza (stabilizacja, ludzie) zostanie policzona ponownie, jeśli będzie potrzebna."
-        case .segmentation: return "Dane masek/izolacji obiektów zostaną policzone ponownie przy użyciu."
+        case .render: return CoreText.t("FCP wyrenderuje ponownie przy odtwarzaniu/eksporcie.")
+        case .preview: return CoreText.t("Premiere wyrenderuje podglądy ponownie, gdy będą potrzebne.")
+        case .mediaCache: return CoreText.t("Premiere/After Effects odbudują cache i pliki szczytów przy imporcie (pierwsze otwarcie projektu będzie wolniejsze).")
+        case .cache: return CoreText.t("Program odtworzy cache przy odtwarzaniu (pierwsze odtworzenie będzie wolniejsze).")
+        case .proxy: return CoreText.t("Jeśli montujesz na proxy, trzeba je utworzyć ponownie w programie.")
+        case .optimized: return CoreText.t("Program wróci do oryginałów; zoptymalizowane media można utworzyć ponownie.")
+        case .analysis: return CoreText.t("Analiza (stabilizacja, ludzie) zostanie policzona ponownie, jeśli będzie potrzebna.")
+        case .segmentation: return CoreText.t("Dane masek/izolacji obiektów zostaną policzone ponownie przy użyciu.")
         }
     }
 }
@@ -53,10 +53,10 @@ public enum EditorApp: String, CaseIterable, Sendable, Codable, Identifiable {
     public var id: String { rawValue }
     public var title: String {
         switch self {
-        case .finalCut: return "Final Cut Pro"
-        case .adobe: return "Premiere Pro / After Effects"
-        case .davinci: return "DaVinci Resolve"
-        case .capcut: return "CapCut"
+        case .finalCut: return CoreText.t("Final Cut Pro")
+        case .adobe: return CoreText.t("Premiere Pro / After Effects")
+        case .davinci: return CoreText.t("DaVinci Resolve")
+        case .capcut: return CoreText.t("CapCut")
         }
     }
     /// Identyfikatory aplikacji (do wykrycia, czy program jest zainstalowany / uruchomiony).
@@ -133,7 +133,7 @@ public enum FCPGeneratedScanner {
                 try Task.checkCancellation()
                 progress?(ScanProgress(phase: .measuring, current: url.path))
                 let size = try directorySize(url)
-                if size > 0 { reports.append(LibraryReport(url: url, isExternalFolder: true, folders: [GeneratedFolder(url: url, kind: kind, size: size, event: nil)], app: app, label: label)) }
+                if size > 0 { reports.append(LibraryReport(url: url, isExternalFolder: true, folders: [GeneratedFolder(url: url, kind: kind, size: size, event: nil)], app: app, label: CoreText.t(label))) }
             }
         }
         progress?(ScanProgress(phase: .done))
@@ -152,7 +152,7 @@ public enum FCPGeneratedScanner {
             let size = try directorySize(url)
             let parent = url.deletingLastPathComponent().lastPathComponent
             return LibraryReport(url: url, isExternalFolder: true, folders: size > 0 ? [GeneratedFolder(url: url, kind: kind, size: size, event: nil)] : [],
-                                 app: app, label: label.map { "\($0) — \(parent)" })
+                                 app: app, label: label.map { "\(CoreText.t($0)) — \(parent)" })
         }
         return nil
     }

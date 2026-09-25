@@ -11,12 +11,12 @@ struct FCPScreen: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 ModeHeader(mode: .fcp) { StatusFooter(status: model.status) }
-                LocationsCard(title: "Gdzie są biblioteki i projekty", hint: "Np. ~/Filmy albo dysk M z folderem BIBLIOTEKI", urls: $model.roots)
+                LocationsCard(title: T("Gdzie są biblioteki i projekty"), hint: T("Np. ~/Filmy albo dysk M z folderem BIBLIOTEKI"), urls: $model.roots)
                 HStack {
-                    Text("Tylko liczy i pokazuje. Cache Adobe i CapCut sprawdzam zawsze, niezależnie od folderów. Oryginalne media, projekty i autozapisy nigdy nie są brane pod uwagę.")
+                    Text(T("Tylko liczy i pokazuje. Cache Adobe i CapCut sprawdzam zawsze, niezależnie od folderów. Oryginalne media, projekty i autozapisy nigdy nie są brane pod uwagę."))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                     Spacer()
-                    ScanButton(title: "Policz", enabled: !model.roots.isEmpty && !model.status.isRunning) { model.start() }
+                    ScanButton(title: T("Policz"), enabled: !model.roots.isEmpty && !model.status.isRunning) { model.start() }
                 }
                 .controlSize(.small)
                 if case .running(let p) = model.status { ProgressCard(progress: p) { model.cancel() } }
@@ -24,10 +24,10 @@ struct FCPScreen: View {
             .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 12)
             Divider()
             if !model.libraries.isEmpty { results } else if case .finished = model.status {
-                EmptyHint(symbol: "checkmark.circle", title: "Brak plików do odzyskania", text: "W wybranych miejscach nie ma renderów, podglądów, proxy ani cache programów do montażu.")
+                EmptyHint(symbol: "checkmark.circle", title: T("Brak plików do odzyskania"), text: T("W wybranych miejscach nie ma renderów, podglądów, proxy ani cache programów do montażu."))
             } else {
-                EmptyHint(symbol: "film", title: "Ile zajmują pliki robocze programów do montażu?",
-                          text: "Rendery, podglądy, proxy i cache z Final Cut, Premiere Pro, After Effects, DaVinci Resolve i CapCut. Każdy program potrafi je utworzyć ponownie. Tu widzisz je naraz i sam wybierasz, co usunąć.")
+                EmptyHint(symbol: "film", title: T("Ile zajmują pliki robocze programów do montażu?"),
+                          text: T("Rendery, podglądy, proxy i cache z Final Cut, Premiere Pro, After Effects, DaVinci Resolve i CapCut. Każdy program potrafi je utworzyć ponownie. Tu widzisz je naraz i sam wybierasz, co usunąć."))
             }
         }
     }
@@ -35,12 +35,12 @@ struct FCPScreen: View {
     var results: some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 24) {
-                HeroNumber(caption: "Pliki generowane", value: Fmt.bytes(model.total),
+                HeroNumber(caption: T("Pliki generowane"), value: Fmt.bytes(model.total),
                            sub: Set(model.libraries.map(\.app)).sorted { $0.rawValue < $1.rawValue }.map(\.title).joined(separator: " · ")).fixedSize()
                 VStack(alignment: .leading, spacing: 10) {
                     BreakdownBar(parts: GeneratedKind.allCases.map { ($0.title, Theme.color($0), model.total($0)) })
                     HStack(spacing: 6) {
-                        Text("Zaznacz we wszystkich:").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text(T("Zaznacz we wszystkich:")).font(.system(size: 11)).foregroundStyle(.secondary)
                         ForEach(GeneratedKind.allCases.filter { model.total($0) > 0 }) { k in
                             Toggle(k.title, isOn: Binding(get: { model.isSelected(kind: k) }, set: { model.select(kind: k, on: $0) }))
                                 .toggleStyle(.button).controlSize(.small)
@@ -80,13 +80,13 @@ struct FCPScreen: View {
     var bar: some View {
         let sel = model.checkedFolders
         return HStack(spacing: 10) {
-            if !sel.isEmpty { Button("Odznacz wszystko") { model.checked = [] }.buttonStyle(.borderless) }
+            if !sel.isEmpty { Button(T("Odznacz wszystko")) { model.checked = [] }.buttonStyle(.borderless) }
             Spacer()
-            Text(sel.isEmpty ? "Nic nie zaznaczono" : "Zaznaczono \(Fmt.bytes(sel.reduce(0) { $0 + $1.size }))")
+            Text(sel.isEmpty ? T("Nic nie zaznaczono") : T("Zaznaczono %@", "\(Fmt.bytes(sel.reduce(0) { $0 + $1.size }))"))
                 .font(.system(size: 12, weight: .medium)).monospacedDigit().foregroundStyle(sel.isEmpty ? .secondary : .primary)
             Button { FileActions.reveal(sel.map(\.url)) } label: { Image(systemName: "folder") }
-                .disabled(sel.isEmpty).help("Pokaż zaznaczone w Finderze").accessibilityLabel("Pokaż w Finderze")
-            Button("Przenieś zaznaczone do Kosza…") { model.askTrash() }.disabled(sel.isEmpty)
+                .disabled(sel.isEmpty).help(T("Pokaż zaznaczone w Finderze")).accessibilityLabel(T("Pokaż w Finderze"))
+            Button(T("Przenieś zaznaczone do Kosza…")) { model.askTrash() }.disabled(sel.isEmpty)
         }
         .font(.system(size: 12))
         .padding(.horizontal, 16).padding(.vertical, 10)
@@ -111,7 +111,7 @@ struct LibraryRow: View {
                     Text(lib.name).font(.system(size: 12.5, weight: .semibold))
                     Text(lib.volumeName).font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
                         .padding(.horizontal, 6).padding(.vertical, 1.5).background(Capsule().fill(Color.primary.opacity(0.06)))
-                    if n > 0 && n < ids.count { Text("częściowo").font(.system(size: 10.5)).foregroundStyle(.tertiary) }
+                    if n > 0 && n < ids.count { Text(T("częściowo")).font(.system(size: 10.5)).foregroundStyle(.tertiary) }
                 }
                 HStack(spacing: 10) {
                     ForEach(GeneratedKind.allCases.filter { lib.size(of: $0) > 0 }) { k in
@@ -153,7 +153,7 @@ enum EditorIcon {
         let ws = NSWorkspace.shared
         for id in app.bundlePrefixes { if let u = ws.urlForApplication(withBundleIdentifier: id) { return ws.icon(forFile: u.path) } }
         let names = (try? FileManager.default.contentsOfDirectory(atPath: "/Applications")) ?? []
-        let prefix: [String] = app == .adobe ? ["Adobe Premiere", "Adobe After Effects"] : app == .davinci ? ["DaVinci Resolve"] : app == .capcut ? ["CapCut", "剪映"] : ["Final Cut Pro"]
+        let prefix: [String] = app == .adobe ? [T("Adobe Premiere"), T("Adobe After Effects")] : app == .davinci ? [T("DaVinci Resolve")] : app == .capcut ? ["CapCut", "剪映"] : [T("Final Cut Pro")]
         if let n = names.first(where: { n in prefix.contains { n.hasPrefix($0) } }) {
             let dir = "/Applications/" + n
             if n.hasSuffix(".app") { return ws.icon(forFile: dir) }

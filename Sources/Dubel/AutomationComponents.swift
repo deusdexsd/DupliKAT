@@ -21,7 +21,7 @@ struct VolumeChips: View {
     var body: some View {
         let names = Array(Set(app.volumes.filter { $0.url.path != "/" && !$0.isCard }.map(\.name) + selected)).sorted()
         if names.isEmpty {
-            Text("Podłącz dysk zewnętrzny, żeby go tu wybrać.").font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(T("Podłącz dysk zewnętrzny, żeby go tu wybrać.")).font(.system(size: 11)).foregroundStyle(.secondary)
         } else {
             FlowLayout(spacing: 6) {
                 ForEach(names, id: \.self) { n in
@@ -46,10 +46,10 @@ struct TemplateField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("Nazwa folderu").font(.system(size: 11.5))
+                Text(T("Nazwa folderu")).font(.system(size: 11.5))
                 TextField("{data} {karta}", text: $template).textFieldStyle(.roundedBorder).font(.system(size: 12, design: .monospaced)).frame(maxWidth: 220)
             }
-            Text("np. „\(CameraCard.folderName(template: template, cardName: "SONY A7"))” · dostępne: {data} {rok} {miesiac} {dzien} {karta}")
+            Text(T("np. „%@” · dostępne: {data} {rok} {miesiac} {dzien} {karta}", "\(CameraCard.folderName(template: template, cardName: T("SONY A7")))"))
                 .font(.system(size: 10.5)).foregroundStyle(.secondary)
         }
     }
@@ -66,12 +66,12 @@ struct SearchLocationsEditor: View {
                 if a { prefs.auto.searchLocations = [] }
                 else if prefs.auto.searchLocations.isEmpty { prefs.auto.searchLocations = prefs.auto.copySearchRoots(excluding: nil).map(\.path) }
             })) {
-                Text("Wszędzie (automatycznie)").tag(true)
-                Text("Tylko wybrane miejsca").tag(false)
+                Text(T("Wszędzie (automatycznie)")).tag(true)
+                Text(T("Tylko wybrane miejsca")).tag(false)
             }
             .pickerStyle(.segmented).labelsHidden().fixedSize()
             if auto {
-                Text("Wszystkie podłączone dyski (poza samą kartą) + Filmy, Obrazy, Biurko i Pobrane. Teraz: " +
+                Text(T("Wszystkie podłączone dyski (poza samą kartą) + Filmy, Obrazy, Biurko i Pobrane. Teraz: ") +
                      prefs.auto.copySearchRoots(excluding: nil).map { Fmt.path($0.path) }.joined(separator: ", "))
                     .font(.system(size: 11.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } else {
@@ -79,14 +79,14 @@ struct SearchLocationsEditor: View {
                     HStack {
                         Image(systemName: p.hasPrefix("/Volumes/") ? "externaldrive" : "folder").foregroundStyle(.secondary)
                         Text(Fmt.path(p)).font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
-                        if !FileManager.default.fileExists(atPath: p) { Text("niepodłączony").font(.system(size: 10.5)).foregroundStyle(Theme.warn) }
+                        if !FileManager.default.fileExists(atPath: p) { Text(T("niepodłączony")).font(.system(size: 10.5)).foregroundStyle(Theme.warn) }
                         Spacer()
                         Button { prefs.auto.searchLocations.removeAll { $0 == p } } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless).foregroundStyle(.secondary).accessibilityLabel("Usuń").help("Usuń z listy")
+                            .buttonStyle(.borderless).foregroundStyle(.secondary).accessibilityLabel(T("Usuń")).help(T("Usuń z listy"))
                     }
                 }
-                Button { prefs.auto.searchLocations += FileActions.chooseFolder(title: "Gdzie szukać kopii?", prompt: "Dodaj", multiple: true).map(\.path).filter { !prefs.auto.searchLocations.contains($0) } } label: {
-                    Label("Dodaj dysk lub folder…", systemImage: "plus")
+                Button { prefs.auto.searchLocations += FileActions.chooseFolder(title: T("Gdzie szukać kopii?"), prompt: T("Dodaj"), multiple: true).map(\.path).filter { !prefs.auto.searchLocations.contains($0) } } label: {
+                    Label(T("Dodaj dysk lub folder…"), systemImage: "plus")
                 }.controlSize(.small)
             }
         }
@@ -99,27 +99,27 @@ struct CardAfterCheckPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Gdy czegoś nie ma nigdzie:").font(.system(size: 12, weight: .medium))
+            Text(T("Gdy czegoś nie ma nigdzie:")).font(.system(size: 12, weight: .medium))
             Picker("", selection: $prefs.auto.cardAfterCheck) {
-                Text("Tylko pokaż").tag("show")
-                Text("Zapytaj, czy skopiować").tag("ask")
-                Text("Kopiuj automatycznie").tag("auto")
+                Text(T("Tylko pokaż")).tag("show")
+                Text(T("Zapytaj, czy skopiować")).tag("ask")
+                Text(T("Kopiuj automatycznie")).tag("auto")
             }
             .pickerStyle(.segmented).labelsHidden().fixedSize()
             if prefs.auto.cardAfterCheck != "show" {
                 HStack(spacing: 8) {
                     Image(systemName: "folder").foregroundStyle(.secondary)
-                    Text(prefs.auto.cardAutoFolder.map { Fmt.path($0) } ?? "Wybierz folder, do którego kopiować…")
+                    Text(prefs.auto.cardAutoFolder.map { Fmt.path($0) } ?? T("Wybierz folder, do którego kopiować…"))
                         .font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
                         .foregroundStyle(prefs.auto.cardAutoFolder == nil ? Theme.warn : .primary)
                     Spacer()
-                    Button("Wybierz…") {
-                        if let u = FileActions.chooseFolder(title: "Dokąd kopiować brakujące pliki z kart?", prompt: "Wybierz").first { prefs.auto.cardAutoFolder = u.path }
+                    Button(T("Wybierz…")) {
+                        if let u = FileActions.chooseFolder(title: T("Dokąd kopiować brakujące pliki z kart?"), prompt: T("Wybierz")).first { prefs.auto.cardAutoFolder = u.path }
                     }.controlSize(.small)
                 }
                 Text(prefs.auto.cardAfterCheck == "auto"
-                     ? "Kopiuje tylko to, czego nie ma nigdzie, do folderu z nazwą karty. Niczego nie usuwa ani nie nadpisuje, każdą kopię sprawdza bajt po bajcie. Dostaniesz powiadomienie z wynikiem."
-                     : "Po sprawdzeniu pokażę okno z listą brakujących plików i pytaniem, czy skopiować je do tego folderu.")
+                     ? T("Kopiuje tylko to, czego nie ma nigdzie, do folderu z nazwą karty. Niczego nie usuwa ani nie nadpisuje, każdą kopię sprawdza bajt po bajcie. Dostaniesz powiadomienie z wynikiem.")
+                     : T("Po sprawdzeniu pokażę okno z listą brakujących plików i pytaniem, czy skopiować je do tego folderu."))
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -134,14 +134,14 @@ struct CardScanOptions: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Toggle("Tylko zdjęcia, wideo i audio", isOn: bind(\.cardMediaOnly))
-                .help("Pomija pliki pomocnicze aparatu: XML, bazę karty, miniatury. Na kartach Sony to setki małych plików.")
-            Picker("Pomijaj mniejsze niż", selection: bind(\.cardMinSizeMB)) {
-                Text("—").tag(0.0); Text("100 KB").tag(0.1); Text("1 MB").tag(1.0); Text("10 MB").tag(10.0)
+            Toggle(T("Tylko zdjęcia, wideo i audio"), isOn: bind(\.cardMediaOnly))
+                .help(T("Pomija pliki pomocnicze aparatu: XML, bazę karty, miniatury. Na kartach Sony to setki małych plików."))
+            Picker(T("Pomijaj mniejsze niż"), selection: bind(\.cardMinSizeMB)) {
+                Text(T("—")).tag(0.0); Text("100 KB").tag(0.1); Text("1 MB").tag(1.0); Text("10 MB").tag(10.0)
             }
             .fixedSize()
-            Toggle("Bajt po bajcie", isOn: bind(\.cardExact))
-                .help("Wolno przez USB — czyta całe pliki z karty i z archiwum. Wyłączone: rozmiar + fragmenty z początku, środka i końca (przy wideo praktycznie pewne).")
+            Toggle(T("Bajt po bajcie"), isOn: bind(\.cardExact))
+                .help(T("Wolno przez USB — czyta całe pliki z karty i z archiwum. Wyłączone: rozmiar + fragmenty z początku, środka i końca (przy wideo praktycznie pewne)."))
         }
         .toggleStyle(.checkbox)
         .font(.system(size: 11.5))

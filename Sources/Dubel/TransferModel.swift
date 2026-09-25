@@ -53,8 +53,8 @@ final class TransferJob: ObservableObject, Identifiable {
     func replan() {
         task?.cancel()
         plan = nil; mirror = nil; result = nil; mirrorConfirmed = false
-        guard let dest = destination, let target = targetFolder, let app else { stage = .failed("Wybierz, dokąd zgrać."); return }
-        guard dest.isAvailable else { stage = .failed("Cel „\(dest.title)” jest niedostępny — podłącz dysk."); return }
+        guard let dest = destination, let target = targetFolder, let app else { stage = .failed(T("Wybierz, dokąd zgrać.")); return }
+        guard dest.isAvailable else { stage = .failed(T("Cel „%@” jest niedostępny — podłącz dysk.", "\(dest.title)")); return }
         stage = .planning(ScanProgress(phase: .listing))
         let walk = app.prefs.walk(minSize: 1, log: log)
         let cache = app.prefs.useCache ? app.cache : nil
@@ -94,11 +94,14 @@ final class TransferJob: ObservableObject, Identifiable {
                 for u in extra { if (try? FileManager.default.trashItem(at: u, resultingItemURL: nil)) != nil { trashed += 1 } }
                 await MainActor.run {
                     self?.result = r; self?.mirrorTrashed = trashed; self?.stage = .done
+                    if let d = self?.destination, let name = self?.sourceName {
+                        self?.app?.drives.log(paths: [d.url], "arrow.down.doc.fill", T("Dograno %@ z „%@”", "\(Fmt.files(r.copied.count))", "\(name)") + (r.failed.isEmpty ? "" : T(", nieudane: %@", "\(r.failed.count)")))
+                    }
                     self?.app?.refreshVolumes()
                     if let d = self?.destination { self?.app?.prefs.auto.lastDestinationID = d.id }
                 }
             } catch is CancellationError {
-                await MainActor.run { self?.stage = .failed("Przerwano. Skopiowane pliki zostają; niedokończony plik nie powstał.") }
+                await MainActor.run { self?.stage = .failed(T("Przerwano. Skopiowane pliki zostają; niedokończony plik nie powstał.")) }
             } catch {
                 await MainActor.run { self?.stage = .failed(error.localizedDescription) }
             }
@@ -133,8 +136,20 @@ final class TransferModel: ObservableObject {
         c.start()
     }
 
+    /// Zaznaczenie z Findera → „czy to już gdzieś jest (i gdzie)?”. W tle, bez przełączania okna. Szuka wszędzie poza samym zaznaczeniem.
+    func startSelection(_ urls: [URL]) {
+        guard let app, let first = urls.first else { return }
+        // Szukaj w zwykłych miejscach + w samym zaznaczeniu (folder) i obok niego (plik) — kopia w tym samym folderze też się liczy.
+        let near = urls.map { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true ? $0 : $0.deletingLastPathComponent() }
+        let c = CardCheckJob(card: first, searchRoots: app.prefs.auto.copySearchRoots(excluding: nil) + near, selection: urls)
+        c.app = app
+        c.automatic = true
+        card = c
+        c.start()
+    }
+
     func startFolder() {
-        guard let src = FileActions.chooseFolder(title: "Który folder albo kartę sprawdzić?", prompt: "Sprawdź").first else { return }
+        guard let src = FileActions.chooseFolder(title: T("Który folder albo kartę sprawdzić?"), prompt: T("Sprawdź")).first else { return }
         startCard(src)
     }
 
@@ -156,13 +171,62 @@ final class TransferModel: ObservableObject {
     func close() { job?.cancel(); job = nil }
 
     func eject(_ volume: URL) {
-        do { try NSWorkspace.shared.unmountAndEjectDevice(at: volume); app?.show("Wysunięto „\(volume.lastPathComponent)”.") }
-        catch { app?.show("Nie udało się wysunąć: \(error.localizedDescription)") }
+        let key = app?.volumes.first { $0.url == volume }?.key
+        do { try NSWorkspace.shared.unmountAndEjectDevice(at: volume); if let key { app?.drives.log(key, "eject", T("Wysunięto")) }; app?.show(T("Wysunięto „%@”.", "\(volume.lastPathComponent)")) }
+        catch { app?.show(T("Nie udało się wysunąć: %@", "\(error.localizedDescription)")) }
         app?.refreshVolumes()
     }
 
     /// Formatowanie robi system, nie Dubel: otwieramy Narzędzie dyskowe.
+    /// Najpierw ostrzeżenie: Narzędzie dyskowe po otwarciu zaznacza dysk startowy, a nie kartę.
+    func openDiskUtility(for card: URL?) {
+        guard let app else { return }
+        if app.prefs.auto.formatWarnings, let card {
+            let info = CardInfo.read(card)
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = T("Uwaga: wymaż właściwy dysk")
+            alert.informativeText = T("Karta, którą chcesz sformatować:\n• nazwa: %@\n• pojemność: %@\n• format: %@\n• identyfikator: %@\n\nNarzędzie dyskowe po otwarciu zaznacza zwykle dysk startowy (Macintosh HD). Zanim klikniesz „Wymaż”, wybierz po lewej „%@” i sprawdź, że pojemność to %@.\n\nNigdy nie wymazuj Macintosh HD ani dysków z archiwum. Wymazania nie da się cofnąć.",
+                                      info.name, info.capacity, info.format, info.device, info.name, info.capacity)
+            alert.addButton(withTitle: T("Rozumiem, otwórz"))
+            alert.addButton(withTitle: T("Anuluj"))
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = T("Nie pokazuj więcej (włączysz w Ustawieniach → Zgrywanie)")
+            NSApp.activate(ignoringOtherApps: true)
+            let r = alert.runModal()
+            if alert.suppressionButton?.state == .on { app.prefs.auto.formatWarnings = false }
+            guard r == .alertFirstButtonReturn else { return }
+        }
+        openDiskUtility()
+    }
+
     func openDiskUtility() {
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Disk Utility.app"))
+    }
+}
+
+/// Dane karty do ostrzeżenia przed formatowaniem (nazwa, pojemność, format, identyfikator dysku z diskutil).
+struct CardInfo {
+    var name: String, capacity: String, format: String, device: String
+
+    static func read(_ url: URL) -> CardInfo {
+        let v = try? url.resourceValues(forKeys: [.volumeNameKey, .volumeTotalCapacityKey, .volumeLocalizedFormatDescriptionKey])
+        var device = "?"
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        p.arguments = ["info", "-plist", url.path]
+        let pipe = Pipe(); p.standardOutput = pipe; p.standardError = Pipe()
+        if (try? p.run()) != nil {
+            p.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] {
+                let id = plist["DeviceIdentifier"] as? String ?? "?"
+                let media = plist["MediaName"] as? String
+                device = media.map { "\(id) (\($0))" } ?? id
+            }
+        }
+        return CardInfo(name: v?.volumeName ?? url.lastPathComponent,
+                        capacity: v?.volumeTotalCapacity.map { Fmt.bytes(Int64($0)) } ?? "?",
+                        format: v?.volumeLocalizedFormatDescription ?? "?", device: device)
     }
 }

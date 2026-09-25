@@ -1,5 +1,11 @@
 import Foundation
 
+/// Tłumaczenie tekstów z silnika — aplikacja podłącza tu swój słownik (PL → EN). Domyślnie bez zmian.
+public enum CoreText {
+    nonisolated(unsafe) public static var translate: (String) -> String = { $0 }
+    public static func t(_ s: String) -> String { translate(s) }
+}
+
 /// Rodzaj pliku z punktu widzenia twórcy wideo. Rozpoznawany po rozszerzeniu (szybko, bez otwierania pliku).
 public enum MediaKind: String, Codable, CaseIterable, Sendable, Identifiable {
     case video, audio, image, project, other
@@ -7,11 +13,11 @@ public enum MediaKind: String, Codable, CaseIterable, Sendable, Identifiable {
 
     public var title: String {
         switch self {
-        case .video: return "Wideo"
-        case .audio: return "Audio"
-        case .image: return "Zdjęcia"
-        case .project: return "Projekty"
-        case .other: return "Inne"
+        case .video: return CoreText.t("Wideo")
+        case .audio: return CoreText.t("Audio")
+        case .image: return CoreText.t("Zdjęcia")
+        case .project: return CoreText.t("Projekty")
+        case .other: return CoreText.t("Inne")
         }
     }
 
@@ -123,6 +129,23 @@ public struct ScanProgress: Sendable, Equatable {
 
     public init(phase: Phase, done: Int = 0, total: Int = 0, bytesDone: Int64 = 0, bytesTotal: Int64 = 0, current: String = "") {
         self.phase = phase; self.done = done; self.total = total; self.bytesDone = bytesDone; self.bytesTotal = bytesTotal; self.current = current
+    }
+
+    /// Jeden procent dla całego zadania, zawsze coś pokazuje (także gdy nie wiadomo jeszcze, ile jest plików):
+    /// przeglądanie folderów 0–25% (asymptotycznie, bo liczba plików jest nieznana), porównywanie 25–100%.
+    /// Nie jest dokładny co do minuty, ale rośnie i nie stoi w miejscu. Cofanie się wyłapuje UI (pokazuje maksimum).
+    public var overall: Double {
+        let f = fraction
+        switch phase {
+        case .listing: return 0.25 * (1 - exp(-Double(done) / 15_000))
+        case .grouping: return 0.25
+        case .sampling: return 0.25 + 0.35 * (f ?? 0)
+        case .hashing, .copying, .verifying: return 0.25 + 0.75 * (f ?? 0)
+        case .fingerprinting: return 0.25 + 0.65 * (f ?? 0)
+        case .comparing: return 0.9 + 0.1 * (f ?? 0)
+        case .measuring: return f ?? min(0.95, 0.05 + 0.9 * (1 - exp(-Double(done) / 8)))
+        case .done: return 1
+        }
     }
 
     public var fraction: Double? {

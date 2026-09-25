@@ -26,12 +26,12 @@ enum QuickAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .checkSelection: return "Sprawdź zaznaczone w Finderze (albo podłączoną kartę)"
-        case .checkCard: return "Sprawdź podłączoną kartę"
-        case .duplicatesSelection: return "Szukaj duplikatów w zaznaczonym folderze"
-        case .toggleWindow: return "Pokaż / schowaj okno"
-        case .measureSystem: return "Zmierz dane systemowe"
-        case .settings: return "Otwórz Ustawienia"
+        case .checkSelection: return T("Sprawdź zaznaczone w Finderze (albo podłączoną kartę)")
+        case .checkCard: return T("Sprawdź podłączoną kartę")
+        case .duplicatesSelection: return T("Szukaj duplikatów w zaznaczonym folderze")
+        case .toggleWindow: return T("Pokaż / schowaj okno")
+        case .measureSystem: return T("Zmierz dane systemowe")
+        case .settings: return T("Otwórz Ustawienia")
         }
     }
 
@@ -97,7 +97,7 @@ enum HotKeyText {
     }
 
     static func keyName(_ code: UInt32) -> String {
-        let special: [UInt32: String] = [49: "Spacja", 36: "Enter", 48: "Tab", 51: "⌫", 123: "←", 124: "→", 125: "↓", 126: "↑",
+        let special: [UInt32: String] = [49: T("Spacja"), 36: "Enter", 48: "Tab", 51: "⌫", 123: "←", 124: "→", 125: "↓", 126: "↑",
                                          122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6", 98: "F7", 100: "F8", 101: "F9", 109: "F10", 103: "F11", 111: "F12"]
         if let n = special[code] { return n }
         let letters: [UInt32: String] = [0: "A", 11: "B", 8: "C", 2: "D", 14: "E", 3: "F", 5: "G", 4: "H", 34: "I", 38: "J", 40: "K", 37: "L", 46: "M", 45: "N", 31: "O", 35: "P", 12: "Q", 15: "R", 1: "S", 17: "T", 32: "U", 9: "V", 13: "W", 7: "X", 16: "Y", 6: "Z",
@@ -118,16 +118,16 @@ struct HotKeyRecorder: View {
             Button {
                 recording ? stop() : start()
             } label: {
-                Text(recording ? "Naciśnij skrót…" : spec.map(HotKeyText.string) ?? "Brak")
+                Text(recording ? T("Naciśnij skrót…") : spec.map(HotKeyText.string) ?? T("Brak"))
                     .font(.system(size: 12, weight: .semibold, design: .rounded)).monospacedDigit()
                     .frame(minWidth: 96)
             }
             .buttonStyle(GradientButtonStyle(prominent: recording))
             if spec == nil {
-                Button("Użyj \(HotKeyText.string(suggested))") { spec = suggested }.buttonStyle(.borderless).font(.system(size: 11))
+                Button(T("Użyj %@", "\(HotKeyText.string(suggested))")) { spec = suggested }.buttonStyle(.borderless).font(.system(size: 11))
             } else {
                 Button { spec = nil } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.borderless).foregroundStyle(.secondary)
-                    .help("Wyłącz skrót").accessibilityLabel("Wyłącz skrót")
+                    .help(T("Wyłącz skrót")).accessibilityLabel(T("Wyłącz skrót"))
             }
         }
         .onDisappear { stop() }
@@ -155,8 +155,9 @@ struct HotKeyRecorder: View {
 
 @MainActor
 enum QuickActions {
-    /// Zaznaczenie w Finderze (albo folder przedniego okna Findera), przez AppleScript — przy pierwszym użyciu macOS zapyta o zgodę.
-    static func finderSelection() -> [URL] {
+    /// Zaznaczenie w Finderze — pliki i foldery (albo folder przedniego okna Findera, gdy nic nie jest zaznaczone).
+    /// Przez AppleScript: przy pierwszym użyciu macOS pyta o zgodę. `nil` = brak zgody.
+    static func finderSelection() -> [URL]? {
         let src = """
         tell application "Finder"
             set out to {}
@@ -172,51 +173,74 @@ enum QuickActions {
         end tell
         """
         var err: NSDictionary?
-        guard let res = NSAppleScript(source: src)?.executeAndReturnError(&err) else { return [] }
+        guard let res = NSAppleScript(source: src)?.executeAndReturnError(&err) else {
+            let code = err?[NSAppleScript.errorNumber] as? Int ?? 0
+            return code == -1743 || code == -1744 ? nil : []
+        }
         var urls: [URL] = []
         if res.numberOfItems > 0 {
             for i in 1...res.numberOfItems { if let p = res.atIndex(i)?.stringValue { urls.append(URL(fileURLWithPath: p)) } }
         } else if let p = res.stringValue { urls.append(URL(fileURLWithPath: p)) }
-        return urls.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+        return urls.filter { FileManager.default.fileExists(atPath: $0.path) }
     }
 
+    /// Czynność startuje od razu w tle; postęp i wynik widać w okienku przy pasku menu (i w powiadomieniu po skończeniu).
     static func run(_ a: QuickAction, app: AppModel, delegate: AppDelegate?) {
+        app.quickNote = nil
         switch a {
         case .checkSelection:
-            if let folder = finderSelection().first { checkInBackground(folder, app: app) } else { checkCard(app: app) }
+            guard let sel = selectionOrNote(app) else { return }
+            if sel.isEmpty { checkCard(app: app) } else { checkInBackground(sel, app: app) }
         case .checkCard:
             checkCard(app: app)
         case .duplicatesSelection:
-            let sel = finderSelection()
-            guard !sel.isEmpty else { Notifier.send("Nic nie zaznaczono", "Zaznacz folder w Finderze i spróbuj ponownie."); return }
-            guard !app.duplicates.status.isRunning else { Notifier.send("Już szukam duplikatów", "Poczekaj, aż skończy się poprzedni skan."); return }
+            guard let sel = selectionOrNote(app) else { return }
+            guard !sel.isEmpty else { app.quickNote = QuickNote(text: T("Nic nie jest zaznaczone w Finderze. Zaznacz folder (albo pliki) i kliknij jeszcze raz.")); return }
+            guard !app.duplicates.status.isRunning else { app.quickNote = QuickNote(text: T("Już szukam duplikatów — poczekaj, aż skończy się poprzedni skan.")); return }
             app.duplicates.roots = sel
             app.duplicates.onFinish = {
                 let g = app.duplicates.groups
-                Notifier.send("Duplikaty: \(sel.map(\.lastPathComponent).joined(separator: ", "))",
-                              g.isEmpty ? "Brak duplikatów." : "\(Fmt.groups(g.count)), do odzyskania \(Fmt.bytes(app.duplicates.reclaimable)). Nic nie zostało usunięte.", mode: .duplicates)
+                let body = g.isEmpty ? T("Brak duplikatów.") : T("%@, do odzyskania %@. Nic nie zostało usunięte.", "\(Fmt.groups(g.count))", "\(Fmt.bytes(app.duplicates.reclaimable))")
+                app.quickNote = QuickNote(text: T("Duplikaty: %@", "\(sel.map(\.lastPathComponent).joined(separator: ", "))") + " — " + body, isError: false, mode: g.isEmpty ? nil : .duplicates)
+                Notifier.send(T("Duplikaty: %@", "\(sel.map(\.lastPathComponent).joined(separator: ", "))"), body, mode: .duplicates)
             }
             app.duplicates.start()
-            Notifier.send("Szukam duplikatów w tle", sel.map { Fmt.path($0.path) }.joined(separator: ", "))
         case .toggleWindow: delegate?.toggleMain()
-        case .measureSystem: app.system.measure(); Notifier.send("Mierzę dane systemowe", "Postęp widać w pasku menu.")
+        case .measureSystem: app.system.measure()
         case .settings: delegate?.showSettings()
         }
     }
 
-    private static func checkCard(app: AppModel) {
-        if let card = app.volumes.first(where: \.isCard) { checkInBackground(card.url, app: app) }
-        else { Notifier.send("Nie widzę karty", "Podłącz kartę albo zaznacz folder w Finderze.") }
+    /// Zaznaczenie z Findera albo komunikat w okienku, gdy macOS nie dał zgody (wtedy `nil`).
+    private static func selectionOrNote(_ app: AppModel) -> [URL]? {
+        guard let sel = finderSelection() else {
+            app.quickNote = QuickNote(text: T("macOS nie pozwala mi odczytać zaznaczenia w Finderze. Włącz DupliKAT → Finder w Ustawieniach systemowych → Prywatność i ochrona → Automatyzacja."), privacyLink: true)
+            return nil
+        }
+        return sel
     }
 
-    /// Sprawdzenie w tle — bez otwierania okna. Postęp w pasku menu, wynik w powiadomieniu (i reguła „co dalej” z Ustawień).
-    private static func checkInBackground(_ url: URL, app: AppModel) {
-        guard app.transfer.card?.isBusy != true else { Notifier.send("Już sprawdzam", "Poczekaj, aż skończy się poprzednie sprawdzanie."); return }
-        let mode = app.mode
-        app.transfer.startCard(url, automatic: true)
-        app.mode = mode // nie przełączaj widoku, jeśli okno jest otwarte na czymś innym
-        Notifier.send("Sprawdzam „\(url.lastPathComponent)” w tle", "Postęp widać w pasku menu. Dam znać, co jest zgrane.")
+    private static func checkCard(app: AppModel) {
+        if let card = app.volumes.first(where: \.isCard) { checkInBackground([card.url], app: app, card: true) }
+        else { app.quickNote = QuickNote(text: T("Nic nie jest zaznaczone w Finderze i nie widzę karty. Zaznacz pliki albo folder i kliknij jeszcze raz.")) }
     }
+
+    /// Sprawdzenie w tle — bez otwierania okna. Postęp i wynik w okienku przy pasku menu, na koniec powiadomienie.
+    private static func checkInBackground(_ urls: [URL], app: AppModel, card: Bool = false) {
+        guard app.transfer.card?.isBusy != true else { app.quickNote = QuickNote(text: T("Już sprawdzam — poczekaj, aż skończy się poprzednie sprawdzanie.")); return }
+        let (mode, drive) = (app.mode, app.selectedDrive)
+        if card { app.transfer.startCard(urls[0], automatic: true) } else { app.transfer.startSelection(urls) }
+        if app.mode != mode { app.mode = mode } // nie przełączaj widoku, jeśli okno jest otwarte na czymś innym
+        app.selectedDrive = drive
+    }
+}
+
+/// Krótki komunikat w okienku przy pasku menu (błąd albo wynik szybkiej akcji).
+struct QuickNote: Equatable {
+    var text: String
+    var isError = true
+    var mode: Mode?
+    var privacyLink = false
 }
 
 /// Karta w Ustawieniach: skróty klawiszowe + adresy do Stream Decka (jak w Ogarze).
@@ -226,16 +250,16 @@ struct ShortcutsSettings: View {
 
     var body: some View {
         Group {
-            SectionCard(title: "Skróty klawiszowe", footer: "Działają w każdej aplikacji, także w Final Cut. Nie wymagają żadnych uprawnień.") {
-                SettingRow(title: "Sprawdź zaznaczone w Finderze", subtitle: "Folder albo karta zaznaczona w Finderze — sprawdzanie w tle") {
+            SectionCard(title: T("Skróty klawiszowe"), footer: T("Działają w każdej aplikacji, także w Final Cut. Nie wymagają żadnych uprawnień.")) {
+                SettingRow(title: T("Sprawdź zaznaczone w Finderze"), subtitle: T("Folder albo karta zaznaczona w Finderze — sprawdzanie w tle")) {
                     HotKeyRecorder(spec: $prefs.auto.hotkeyCheck, suggested: .suggestedCheck)
                 }
                 Divider()
-                SettingRow(title: "Pokaż / schowaj okno") {
+                SettingRow(title: T("Pokaż / schowaj okno")) {
                     HotKeyRecorder(spec: $prefs.auto.hotkeyWindow, suggested: .suggestedWindow)
                 }
             }
-            SectionCard(title: "Stream Deck", footer: "W Stream Decku: akcja „Website” (albo „Open”), wklej adres. Przy pierwszym „Sprawdź zaznaczone” macOS zapyta, czy DupliKAT może czytać zaznaczenie w Finderze.") {
+            SectionCard(title: T("Stream Deck"), footer: T("W Stream Decku: akcja „Website” (albo „Open”), wklej adres. Przy pierwszym „Sprawdź zaznaczone” macOS zapyta, czy DupliKAT może czytać zaznaczenie w Finderze.")) {
                 ForEach(QuickAction.allCases) { a in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -246,7 +270,7 @@ struct ShortcutsSettings: View {
                         Button {
                             NSPasteboard.general.clearContents(); NSPasteboard.general.setString(a.url, forType: .string); copied = a.url
                         } label: { Image(systemName: copied == a.url ? "checkmark" : "doc.on.doc") }
-                            .buttonStyle(.borderless).help("Kopiuj adres").accessibilityLabel("Kopiuj \(a.url)")
+                            .buttonStyle(.borderless).help(T("Kopiuj adres")).accessibilityLabel(T("Kopiuj %@", "\(a.url)"))
                     }
                     if a != QuickAction.allCases.last { Divider() }
                 }

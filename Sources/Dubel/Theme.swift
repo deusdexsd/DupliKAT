@@ -66,20 +66,21 @@ enum Fmt {
 
     static func bytes(_ b: Int64) -> String { bytesFormatter.string(fromByteCount: b) }
 
-    static let date: DateFormatter = {
+    static var date: DateFormatter {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "pl_PL")
+        f.locale = Locale(identifier: Lang.isEnglish ? "en_US" : "pl_PL")
         f.dateStyle = .medium
         f.timeStyle = .none
         return f
-    }()
+    }
 
-    static func files(_ n: Int) -> String { "\(n) \(plural(n, "plik", "pliki", "plików"))" }
-    static func groups(_ n: Int) -> String { "\(n) \(plural(n, "grupa", "grupy", "grup"))" }
-    static func copies(_ n: Int) -> String { "\(n) \(plural(n, "kopia", "kopie", "kopii"))" }
+    static func files(_ n: Int) -> String { Lang.isEnglish ? "\(n) \(n == 1 ? "file" : "files")" : "\(n) \(plural(n, "plik", "pliki", "plików"))" }
+    static func groups(_ n: Int) -> String { Lang.isEnglish ? "\(n) \(n == 1 ? "group" : "groups")" : "\(n) \(plural(n, "grupa", "grupy", "grup"))" }
+    static func copies(_ n: Int) -> String { Lang.isEnglish ? "\(n) \(n == 1 ? "copy" : "copies")" : "\(n) \(plural(n, "kopia", "kopie", "kopii"))" }
 
     /// Polska odmiana liczebników: 1 plik, 2–4 pliki, 5+ plików (ale 22 pliki, 12 plików).
     static func plural(_ n: Int, _ one: String, _ few: String, _ many: String) -> String {
+        if Lang.isEnglish { return n == 1 ? (Lang.table["#" + one] ?? one) : (Lang.table["#" + many] ?? many) }
         if n == 1 { return one }
         let d = n % 10, t = n % 100
         return (2...4).contains(d) && !(12...14).contains(t) ? few : many
@@ -88,10 +89,11 @@ enum Fmt {
     /// „ok. 4 min”, „ok. 1 h 20 min”, „kilka sekund”.
     static func eta(_ s: Double) -> String {
         guard s.isFinite, s > 0 else { return "" }
-        if s < 20 { return "kilka sekund" }
-        if s < 90 { return "ok. \(Int(s.rounded())) s" }
+        if s < 20 { return T("kilka sekund") }
+        let about = Lang.isEnglish ? "about" : "ok."
+        if s < 90 { return "\(about) \(Int(s.rounded())) s" }
         let m = Int((s / 60).rounded())
-        return m < 60 ? "ok. \(m) min" : "ok. \(m / 60) h \(m % 60) min"
+        return m < 60 ? "\(about) \(m) min" : "\(about) \(m / 60) h \(m % 60) min"
     }
 
     static func percent(_ x: Double) -> String { "\(Int((x * 100).rounded()))%" }

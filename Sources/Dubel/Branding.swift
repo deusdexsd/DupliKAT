@@ -11,9 +11,9 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .kat1: return "Karty"
-        case .kat2: return "Topór"
-        case .kat3: return "Kaptur"
+        case .kat1: return T("Karty")
+        case .kat2: return T("Topór")
+        case .kat3: return T("Kaptur")
         }
     }
 
@@ -34,11 +34,11 @@ enum MenuBarIconChoice: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .cards: return "Karty"
-        case .axe: return "Topór"
-        case .hood: return "Kaptur"
-        case .docs: return "Kopie"
-        case .scissors: return "Nożyczki"
+        case .cards: return T("Karty")
+        case .axe: return T("Topór")
+        case .hood: return T("Kaptur")
+        case .docs: return T("Kopie")
+        case .scissors: return T("Nożyczki")
         }
     }
 
@@ -154,7 +154,7 @@ struct AppIconPicker: View {
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(on ? AnyShapeStyle(accent.gradient) : AnyShapeStyle(Color.clear), lineWidth: 2))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Ikona \(c.title)")
+                .accessibilityLabel(T("Ikona %@", "\(c.title)"))
             }
         }
     }
@@ -181,8 +181,32 @@ struct MenuBarIconPicker: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Ikona w pasku menu: \(c.title)")
+                .accessibilityLabel(T("Ikona w pasku menu: %@", "\(c.title)"))
             }
         }
     }
+}
+
+// MARK: - Język (PL/EN)
+
+/// Tłumaczenie tekstów interfejsu. Kluczem jest polski tekst (z %@ w miejscu wstawek), angielskie wersje są w en.json.
+/// Brak tłumaczenia = polski tekst (nic się nie psuje, najwyżej zostaje po polsku).
+enum Lang {
+    nonisolated(unsafe) static var isEnglish = false
+    nonisolated(unsafe) static var table: [String: String] = [:]
+
+    static func load(_ code: String) {
+        isEnglish = code == "en"
+        if isEnglish, table.isEmpty, let u = Bundle.main.url(forResource: "en", withExtension: "json"),
+           let d = try? Data(contentsOf: u), let t = try? JSONDecoder().decode([String: String].self, from: d) { table = t }
+    }
+}
+
+func T(_ key: String, _ args: String...) -> String {
+    var out = Lang.isEnglish ? (Lang.table[key] ?? key) : key
+    for a in args {
+        guard let r = out.range(of: "%@") else { break }
+        out.replaceSubrange(r, with: a)
+    }
+    return out
 }

@@ -14,6 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
     private var statusBar: StatusBarController?
 
     func applicationDidFinishLaunching(_ note: Notification) {
+        if let l = ProcessInfo.processInfo.environment["DUBEL_LANG"] { prefs.auto.language = l }
+        Lang.load(prefs.auto.language)
+        CoreText.translate = { T($0) }
+        KitText.translate = { T($0) }
         NSApp.mainMenu = MainMenu.build(target: self)
         app.showMainWindow = { [weak self] in self?.showMain() }
         UNUserNotificationCenter.current().delegate = self
@@ -44,6 +48,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
             } else if let a = QuickAction(rawValue: name) {
                 QuickActions.run(a, app: app, delegate: self)
             }
+        }
+    }
+
+    /// Zmiana języka: onboarding i menu przełączają się od razu, reszta okien po ponownym uruchomieniu.
+    func setLanguage(_ code: String) {
+        guard prefs.auto.language != code else { return }
+        prefs.auto.language = code
+        Lang.table = [:]
+        Lang.load(code)
+        NSApp.mainMenu = MainMenu.build(target: self)
+        statusBar?.updateIcon(prefs.auto.menuBarIcon)
+    }
+
+    /// Uruchamia aplikację od nowa (po zmianie języka w Ustawieniach).
+    func relaunch() {
+        let cfg = NSWorkspace.OpenConfiguration()
+        cfg.createsNewApplicationInstance = true
+        let url = Bundle.main.bundleURL
+        NSWorkspace.shared.openApplication(at: url, configuration: cfg) { _, _ in
+            DispatchQueue.main.async { NSApp.terminate(nil) }
         }
     }
 
@@ -136,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     @objc func showSettings() {
         if settingsWindow == nil {
-            settingsWindow = makeWindow(SettingsView(onChange: { [weak self] in self?.applyAppearanceSettings() }), title: "Ustawienia \(AppInfo.name)",
+            settingsWindow = makeWindow(SettingsView(onChange: { [weak self] in self?.applyAppearanceSettings() }), title: T("Ustawienia %@", "\(AppInfo.name)"),
                                         size: NSSize(width: 660, height: 720), id: "settings", style: [.titled, .closable, .miniaturizable, .resizable])
         }
         present(settingsWindow)
@@ -144,7 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     @objc func showOnboarding() {
         if onboardingWindow == nil {
-            let w = makeWindow(OnboardingView(onFinish: { [weak self] in self?.finishOnboarding() }), title: "Witaj w \(AppInfo.name)",
+            let w = makeWindow(OnboardingView(onFinish: { [weak self] in self?.finishOnboarding() }), title: T("Witaj w %@", "\(AppInfo.name)"),
                                size: NSSize(width: 760, height: 680), id: "onboarding", style: [.titled, .closable, .fullSizeContentView])
             w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden
@@ -191,8 +215,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUs
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler done: @escaping () -> Void) {
         let raw = response.notification.request.content.userInfo["mode"] as? String
+        let card = response.notification.request.content.userInfo["checkCard"] as? String
         Task { @MainActor in
-            if let raw, let m = Mode(rawValue: raw) { self.open(mode: m) } else { self.showMain() }
+            if let card, FileManager.default.fileExists(atPath: card) { self.app.transfer.startCard(URL(fileURLWithPath: card)); self.showMain() }
+            else if let raw, let m = Mode(rawValue: raw) { self.open(mode: m) } else { self.showMain() }
             done()
         }
     }
@@ -220,44 +246,44 @@ enum MainMenu {
         let appMenu = NSMenu()
         appMenu.addItem(item("O \(AppInfo.name)", #selector(NSApplication.orderFrontStandardAboutPanel(_:))))
         appMenu.addItem(.separator())
-        appMenu.addItem(item("Ustawienia…", #selector(AppDelegate.showSettings), ",", to: target))
-        appMenu.addItem(item("Przewodnik konfiguracji…", #selector(AppDelegate.showOnboarding), to: target))
+        appMenu.addItem(item(T("Ustawienia…"), #selector(AppDelegate.showSettings), ",", to: target))
+        appMenu.addItem(item(T("Przewodnik konfiguracji…"), #selector(AppDelegate.showOnboarding), to: target))
         appMenu.addItem(.separator())
-        appMenu.addItem(item("Ukryj \(AppInfo.name)", #selector(NSApplication.hide(_:)), "h"))
-        appMenu.addItem(item("Ukryj pozostałe", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]))
+        appMenu.addItem(item(T("Ukryj %@", "\(AppInfo.name)"), #selector(NSApplication.hide(_:)), "h"))
+        appMenu.addItem(item(T("Ukryj pozostałe"), #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]))
         appMenu.addItem(.separator())
-        appMenu.addItem(item("Zakończ \(AppInfo.name)", #selector(NSApplication.terminate(_:)), "q"))
+        appMenu.addItem(item(T("Zakończ %@", "\(AppInfo.name)"), #selector(NSApplication.terminate(_:)), "q"))
         add(appMenu, AppInfo.name, to: main)
 
-        let edit = NSMenu(title: "Edycja")
-        edit.addItem(item("Cofnij", Selector(("undo:")), "z"))
-        edit.addItem(item("Przywróć", Selector(("redo:")), "z", [.command, .shift]))
+        let edit = NSMenu(title: T("Edycja"))
+        edit.addItem(item(T("Cofnij"), Selector(("undo:")), "z"))
+        edit.addItem(item(T("Przywróć"), Selector(("redo:")), "z", [.command, .shift]))
         edit.addItem(.separator())
-        edit.addItem(item("Wytnij", #selector(NSText.cut(_:)), "x"))
-        edit.addItem(item("Kopiuj", #selector(NSText.copy(_:)), "c"))
-        edit.addItem(item("Wklej", #selector(NSText.paste(_:)), "v"))
-        edit.addItem(item("Zaznacz wszystko", #selector(NSText.selectAll(_:)), "a"))
-        add(edit, "Edycja", to: main)
+        edit.addItem(item(T("Wytnij"), #selector(NSText.cut(_:)), "x"))
+        edit.addItem(item(T("Kopiuj"), #selector(NSText.copy(_:)), "c"))
+        edit.addItem(item(T("Wklej"), #selector(NSText.paste(_:)), "v"))
+        edit.addItem(item(T("Zaznacz wszystko"), #selector(NSText.selectAll(_:)), "a"))
+        add(edit, T("Edycja"), to: main)
 
-        let modes = NSMenu(title: "Tryb")
+        let modes = NSMenu(title: T("Tryb"))
         for (i, m) in Mode.allCases.enumerated() {
             let it = item(m.title, #selector(AppDelegate.selectMode(_:)), "\(i + 1)", to: target)
             it.representedObject = m.rawValue
             modes.addItem(it)
         }
-        add(modes, "Tryb", to: main)
+        add(modes, T("Tryb"), to: main)
 
-        let window = NSMenu(title: "Okno")
-        window.addItem(item("Otwórz okno \(AppInfo.name)", #selector(AppDelegate.showMain), "0", to: target))
-        window.addItem(item("Minimalizuj", #selector(NSWindow.performMiniaturize(_:)), "m"))
-        window.addItem(item("Zamknij", #selector(NSWindow.performClose(_:)), "w"))
-        add(window, "Okno", to: main)
+        let window = NSMenu(title: T("Okno"))
+        window.addItem(item(T("Otwórz okno %@", "\(AppInfo.name)"), #selector(AppDelegate.showMain), "0", to: target))
+        window.addItem(item(T("Minimalizuj"), #selector(NSWindow.performMiniaturize(_:)), "m"))
+        window.addItem(item(T("Zamknij"), #selector(NSWindow.performClose(_:)), "w"))
+        add(window, T("Okno"), to: main)
         NSApp.windowsMenu = window
 
-        let help = NSMenu(title: "Pomoc")
-        help.addItem(item("Pokaż, co jest co", #selector(AppDelegate.startTour), "", to: target))
-        help.addItem(item("Przewodnik konfiguracji…", #selector(AppDelegate.showOnboarding), "", to: target))
-        add(help, "Pomoc", to: main)
+        let help = NSMenu(title: T("Pomoc"))
+        help.addItem(item(T("Pokaż, co jest co"), #selector(AppDelegate.startTour), "", to: target))
+        help.addItem(item(T("Przewodnik konfiguracji…"), #selector(AppDelegate.showOnboarding), "", to: target))
+        add(help, T("Pomoc"), to: main)
         NSApp.helpMenu = help
         return main
     }

@@ -18,16 +18,16 @@ struct BackupScreen: View {
             VStack(alignment: .leading, spacing: 14) {
                 ModeHeader(mode: .backup) { StatusFooter(status: model.status, log: model.log) }
                 HStack(alignment: .top, spacing: 12) {
-                    LocationsCard(title: "Źródło — co sprawdzić", hint: "Np. folder roboczy albo karta", urls: $model.sources)
+                    LocationsCard(title: T("Źródło — co sprawdzić"), hint: T("Np. folder roboczy albo karta"), urls: $model.sources)
                     Image(systemName: "arrow.right").foregroundStyle(.tertiary).padding(.top, 34)
-                    LocationsCard(title: "Archiwum — gdzie powinno być", hint: "Np. dysk M albo folder „BACKUP KART”", urls: $model.backups)
+                    LocationsCard(title: T("Archiwum — gdzie powinno być"), hint: T("Np. dysk M albo folder „BACKUP KART”"), urls: $model.backups)
                         .coachAnchor("archive")
                 }
                 HStack {
-                    Toggle("Sprawdzaj całą zawartość plików", isOn: $prefs.backupVerify)
-                        .help("Wolniej, ale dopiero wtedy „zgrane” znaczy „identyczne bajt po bajcie”. Zalecane, jeśli potem kasujesz kartę.")
+                    Toggle(T("Sprawdzaj całą zawartość plików"), isOn: $prefs.backupVerify)
+                        .help(T("Wolniej, ale dopiero wtedy „zgrane” znaczy „identyczne bajt po bajcie”. Zalecane, jeśli potem kasujesz kartę."))
                     Spacer()
-                    ScanButton(title: "Sprawdź", enabled: !model.sources.isEmpty && !model.backups.isEmpty && !model.status.isRunning) { model.start() }
+                    ScanButton(title: T("Sprawdź"), enabled: !model.sources.isEmpty && !model.backups.isEmpty && !model.status.isRunning) { model.start() }
                 }
                 .font(.system(size: 12)).controlSize(.small)
                 if case .running(let p) = model.status { ProgressCard(progress: p, log: model.log) { model.cancel() } }
@@ -38,8 +38,8 @@ struct BackupScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         PairsSection(model: app.transfer)
-                        EmptyHint(symbol: "arrow.left.arrow.right", title: "Czy wszystko z A jest w B?",
-                                  text: "Wskaż źródło i archiwum albo użyj zapisanej pary. Każdy plik ze źródła jest szukany w archiwum po zawartości — także jeśli ma tam inną nazwę albo leży w innym folderze.")
+                        EmptyHint(symbol: "arrow.left.arrow.right", title: T("Czy wszystko z A jest w B?"),
+                                  text: T("Wskaż źródło i archiwum albo użyj zapisanej pary. Każdy plik ze źródła jest szukany w archiwum po zawartości — także jeśli ma tam inną nazwę albo leży w innym folderze."))
                             .frame(height: 200)
                     }
                     .padding(20)
@@ -52,13 +52,13 @@ struct BackupScreen: View {
         let list: [BackupChecker.Entry] = tab == .backedUp ? r.backedUp : tab == .missing ? r.missing : r.differs
         return VStack(spacing: 0) {
             HStack(spacing: 10) {
-                StatTile(title: "Zgrane", value: r.backedUp.count, size: r.backedUp.reduce(0) { $0 + $1.file.size }, color: Theme.safe, symbol: "checkmark.circle.fill", selected: tab == .backedUp) { tab = .backedUp }
-                StatTile(title: "Brakuje w archiwum", value: r.missing.count, size: r.missing.reduce(0) { $0 + $1.file.size }, color: Theme.missing, symbol: "xmark.circle.fill", selected: tab == .missing) { tab = .missing }
-                StatTile(title: "Ta sama nazwa, inna treść", value: r.differs.count, size: r.differs.reduce(0) { $0 + $1.file.size }, color: Theme.warn, symbol: "exclamationmark.circle.fill", selected: tab == .differs) { tab = .differs }
+                StatTile(title: T("Zgrane"), value: r.backedUp.count, size: r.backedUp.reduce(0) { $0 + $1.file.size }, color: Theme.safe, symbol: "checkmark.circle.fill", selected: tab == .backedUp) { tab = .backedUp }
+                StatTile(title: T("Brakuje w archiwum"), value: r.missing.count, size: r.missing.reduce(0) { $0 + $1.file.size }, color: Theme.missing, symbol: "xmark.circle.fill", selected: tab == .missing) { tab = .missing }
+                StatTile(title: T("Ta sama nazwa, inna treść"), value: r.differs.count, size: r.differs.reduce(0) { $0 + $1.file.size }, color: Theme.warn, symbol: "exclamationmark.circle.fill", selected: tab == .differs) { tab = .differs }
             }
             .padding(.horizontal, 20).padding(.vertical, 12)
             if list.isEmpty {
-                EmptyHint(symbol: tab == .missing ? "checkmark.seal" : "tray", title: tab == .missing ? "Wszystko jest w archiwum" : "Pusto", text: tab == .missing ? "Każdy plik ze źródła ma kopię w archiwum." : "")
+                EmptyHint(symbol: tab == .missing ? "checkmark.seal" : "tray", title: tab == .missing ? T("Wszystko jest w archiwum") : T("Pusto"), text: tab == .missing ? T("Każdy plik ze źródła ma kopię w archiwum.") : "")
             } else {
                 List {
                     ForEach(list) { e in BackupRow(entry: e, checkable: tab != .differs, model: model) }
@@ -76,18 +76,18 @@ struct BackupScreen: View {
     func bar(_ list: [BackupChecker.Entry]) -> some View {
         let sel = list.filter { model.checked.contains($0.id) }
         return HStack(spacing: 10) {
-            Button("Zaznacz wszystkie") { model.checked.formUnion(list.map(\.id)) }.buttonStyle(.borderless)
-            if !sel.isEmpty { Button("Odznacz") { model.checked.subtract(list.map(\.id)) }.buttonStyle(.borderless) }
+            Button(T("Zaznacz wszystkie")) { model.checked.formUnion(list.map(\.id)) }.buttonStyle(.borderless)
+            if !sel.isEmpty { Button(T("Odznacz")) { model.checked.subtract(list.map(\.id)) }.buttonStyle(.borderless) }
             Spacer()
-            Text(sel.isEmpty ? "Nic nie zaznaczono" : "Zaznaczono \(Fmt.files(sel.count)) · \(Fmt.bytes(sel.reduce(0) { $0 + $1.file.size }))")
+            Text(sel.isEmpty ? T("Nic nie zaznaczono") : T("Zaznaczono %@ · %@", "\(Fmt.files(sel.count))", "\(Fmt.bytes(sel.reduce(0) { $0 + $1.file.size }))"))
                 .font(.system(size: 12, weight: .medium)).monospacedDigit().foregroundStyle(sel.isEmpty ? .secondary : .primary)
             Button { FileActions.reveal(sel.map(\.file.url)) } label: { Image(systemName: "folder") }
-                .disabled(sel.isEmpty).help("Pokaż zaznaczone w Finderze").accessibilityLabel("Pokaż w Finderze")
+                .disabled(sel.isEmpty).help(T("Pokaż zaznaczone w Finderze")).accessibilityLabel(T("Pokaż w Finderze"))
             if tab == .backedUp {
-                Button("Przenieś ze źródła do Kosza…") { model.askTrashBackedUp() }.disabled(sel.isEmpty)
-                    .help("Tylko pliki, które mają identyczną kopię w archiwum.")
+                Button(T("Przenieś ze źródła do Kosza…")) { model.askTrashBackedUp() }.disabled(sel.isEmpty)
+                    .help(T("Tylko pliki, które mają identyczną kopię w archiwum."))
             } else {
-                Button("Skopiuj do archiwum…") { model.askCopyMissing() }.disabled(sel.isEmpty)
+                Button(T("Skopiuj do archiwum…")) { model.askCopyMissing() }.disabled(sel.isEmpty)
             }
         }
         .font(.system(size: 12))
@@ -157,8 +157,8 @@ struct BackupRow: View {
 
     var counterpart: String? {
         switch entry.status {
-        case .backedUp(let u): return "w archiwum: " + Fmt.path(u[0].path) + (u.count > 1 ? " (+\(u.count - 1))" : "")
-        case .differs(let u): return "inna treść: " + Fmt.path(u[0].path)
+        case .backedUp: return CopyText.describe(entry, nil)
+        case .differs(let u): return T("inna treść: ") + Fmt.path(u[0].path)
         case .missing: return nil
         }
     }

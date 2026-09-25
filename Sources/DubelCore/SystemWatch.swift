@@ -16,7 +16,7 @@ public struct Hotspot: Sendable, Identifiable, Hashable {
 public enum Hotspots {
     public static func all(home: String = NSHomeDirectory()) -> [Hotspot] {
         func h(_ id: String, _ title: String, _ rel: String, _ why: String, _ s: Hotspot.Safety, _ sym: String) -> Hotspot {
-            Hotspot(id: id, title: title, path: rel.hasPrefix("/") ? rel : home + "/" + rel, explanation: why, safety: s, symbol: sym)
+            Hotspot(id: id, title: CoreText.t(title), path: rel.hasPrefix("/") ? rel : home + "/" + rel, explanation: CoreText.t(why), safety: s, symbol: sym)
         }
         return [
             h("caches", "Pamięć podręczna aplikacji", "Library/Caches", "Tymczasowe pliki programów. Programy odtwarzają je same, ale usuwane ręcznie przy otwartej aplikacji potrafią ją zepsuć. Jeśli już — tylko cache konkretnej, zamkniętej aplikacji.", .safe, "internaldrive"),

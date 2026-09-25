@@ -24,7 +24,7 @@ enum FileActions {
             for u in urls {
                 do { try FileManager.default.trashItem(at: u, resultingItemURL: nil); o.done.append(u) } catch { o.failed.append((u, error.localizedDescription)) }
             }
-            o.summary = "Przeniesiono do Kosza: \(Fmt.files(o.done.count))" + (o.failed.isEmpty ? "" : ", nie udało się: \(o.failed.count)")
+            o.summary = T("Przeniesiono do Kosza: %@", "\(Fmt.files(o.done.count))") + (o.failed.isEmpty ? "" : T(", nie udało się: %@", "\(o.failed.count)"))
             return o
         }.value
     }
@@ -43,7 +43,7 @@ enum FileActions {
                 }
                 do { try fm.moveItem(at: u, to: dest); o.done.append(u) } catch { o.failed.append((u, error.localizedDescription)) }
             }
-            o.summary = "Przeniesiono: \(Fmt.files(o.done.count)) do „\(folder.lastPathComponent)”" + (o.failed.isEmpty ? "" : ", nie udało się: \(o.failed.count)")
+            o.summary = T("Przeniesiono: %@ do „%@”", "\(Fmt.files(o.done.count))", "\(folder.lastPathComponent)") + (o.failed.isEmpty ? "" : T(", nie udało się: %@", "\(o.failed.count)"))
             return o
         }.value
     }
@@ -57,7 +57,7 @@ enum FileActions {
                 do { try CloneReplacer.replace(duplicate: dup, withCloneOf: keeper); o.done.append(dup) }
                 catch { o.failed.append((dup, "\(error)")) }
             }
-            o.summary = "Zastąpiono klonami: \(Fmt.files(o.done.count))" + (o.failed.isEmpty ? "" : ", pominięto: \(o.failed.count)")
+            o.summary = T("Zastąpiono klonami: %@", "\(Fmt.files(o.done.count))") + (o.failed.isEmpty ? "" : T(", pominięto: %@", "\(o.failed.count)"))
             return o
         }.value
     }
@@ -73,7 +73,7 @@ enum FileActions {
                 let rootName = root.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
                 let rel = root.map { String(u.path.dropFirst($0.count + 1)) } ?? u.lastPathComponent
                 let target = dest.appendingPathComponent(rootName).appendingPathComponent(rel)
-                if fm.fileExists(atPath: target.path) { o.failed.append((u, "w archiwum jest już plik o tej nazwie")); continue }
+                if fm.fileExists(atPath: target.path) { o.failed.append((u, T("w archiwum jest już plik o tej nazwie"))); continue }
                 do {
                     try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                     try fm.copyItem(at: u, to: target)
@@ -81,7 +81,7 @@ enum FileActions {
                 } catch { o.failed.append((u, error.localizedDescription)) }
             }
             progress(files.count, files.count)
-            o.summary = "Skopiowano do archiwum: \(Fmt.files(o.done.count))" + (o.failed.isEmpty ? "" : ", pominięto: \(o.failed.count)")
+            o.summary = T("Skopiowano do archiwum: %@", "\(Fmt.files(o.done.count))") + (o.failed.isEmpty ? "" : T(", pominięto: %@", "\(o.failed.count)"))
             return o
         }.value
     }
@@ -94,7 +94,7 @@ enum FileActions {
             let match: String
             switch g.match {
             case .identical: match = "identyczne"
-            case .sampled: match = "prawie na pewno identyczne"
+            case .sampled: match = T("prawie na pewno identyczne")
             case .similar(let s): match = "podobne \(Fmt.percent(s))"
             }
             for f in g.files {
