@@ -42,7 +42,7 @@ Backupy i ich kopie: oznaczasz dysk jako „backup” (np. M), a inny jako „ko
 widać, na ilu dyskach jest, a DupliKAT liczy, co dograć na kopię (z zachowaniem folderów). Zapamiętuje listę plików
 dysków (bez treści), więc kopia na odłączonym dysku też się liczy.
 
-Wyniki w trzech widokach: lista, kompaktowa lista i siatka miniatur.
+Wyniki w czterech widokach: lista, kompaktowa lista, siatka miniatur i foldery (pary folderów ze wspólnymi plikami — decyzja o całym folderze naraz). Zaznaczanie z góry: wszystkie kopie (zostaw najstarszy/najnowszy/na dysku…), pliki z wybranych folderów albo „zostaw w tych folderach”.
 
 Do tego: ikona w pasku menu (klik = okienko ze statusem, procentem, szybkimi akcjami i dyskami — klik w dysk pokazuje jego akcje; dwuklik = okno, prawy klik = menu reguł). Po skończonym skanie: dźwięk, wynik w okienku z przyciskiem „Pokaż wynik” i powiadomienie, reguły po podłączeniu karty/dysku,
 alarm zajętego miejsca, przewodnik pierwszego uruchomienia i samouczek „co jest co”.

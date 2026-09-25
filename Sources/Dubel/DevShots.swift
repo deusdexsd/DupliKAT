@@ -42,6 +42,17 @@ enum DevShots {
         await shoot("1-duplikaty-przewodnik", out)
         prefs.resultsLayout = "grid"; await shoot("1-duplikaty-siatka", out)
         prefs.resultsLayout = "compact"; await shoot("1-duplikaty-kompakt", out)
+        prefs.resultsLayout = "folders"; await shoot("1-duplikaty-foldery", out)
+        let pairs = app.duplicates.folderPairs
+        print("PARY:", pairs.map { "\(($0.a as NSString).lastPathComponent) ⇄ \(($0.b as NSString).lastPathComponent): \($0.count)" })
+        if let p = pairs.first(where: { !$0.sameFolder }) { app.duplicates.select(pair: p, side: p.b) }
+        print("ZAZNACZONE PO PARZE:", app.duplicates.checkedFiles.map(\.url.path).map { ($0 as NSString).lastPathComponent + " @ " + (($0 as NSString).deletingLastPathComponent as NSString).lastPathComponent }, "blokady:", app.duplicates.blockers())
+        await shoot("1-duplikaty-foldery-zaznaczone", out)
+        app.duplicates.checked = []
+        let t7 = Set(app.duplicates.folderStats.map(\.path).filter { $0.contains("/T7-2") })
+        let kept = app.duplicates.select(inFolders: t7)
+        print("Z FOLDERÓW T7:", app.duplicates.checkedFiles.count, "zostawione grupy:", kept, "blokady:", app.duplicates.blockers())
+        app.duplicates.checked = []
         prefs.resultsLayout = "list"
         prefs.auto.uiStyle = "classic"
         await shoot("1-duplikaty-klasyczny", out)

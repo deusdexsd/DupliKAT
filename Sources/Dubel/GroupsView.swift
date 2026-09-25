@@ -132,7 +132,11 @@ struct ResultsList: View {
         VStack(spacing: 0) {
             Summary(model: model).padding(.horizontal, 20).padding(.vertical, 10)
             Divider()
-            if prefs.resultsLayout == "grid" { grid } else { list }
+            switch prefs.resultsLayout {
+            case "grid": grid
+            case "folders": FolderPairsView(model: model)
+            default: list
+            }
         }
         .quickLookPreview($preview, in: files.map(\.url))
     }
@@ -247,6 +251,7 @@ struct LayoutPicker: View {
                 Image(systemName: "list.bullet.rectangle").help(T("Lista")).tag("list")
                 Image(systemName: "list.dash").help(T("Kompaktowa lista")).tag("compact")
                 Image(systemName: "square.grid.2x2").help(T("Siatka miniatur")).tag("grid")
+                Image(systemName: "folder").help(T("Foldery — pary folderów ze wspólnymi plikami")).tag("folders")
             }
             .pickerStyle(.segmented).labelsHidden().fixedSize()
             .accessibilityLabel(T("Widok wyników"))
@@ -270,9 +275,10 @@ struct Summary: View {
             if kinds.count > 1 {
                 PillTabs(items: [(value: MediaKind?.none, title: T("Wszystko"), symbol: nil)] + kinds.map { (value: MediaKind?.some($0), title: $0.title, symbol: $0.symbol) },
                          selection: $model.filter, fontSize: 11)
-                    .frame(maxWidth: 440)
+                    .frame(maxWidth: 380)
             }
             Spacer(minLength: 8)
+            SelectionControls(model: model)
             LayoutPicker()
         }
     }
@@ -365,21 +371,6 @@ struct ActionBar: View {
     var body: some View {
         let count = model.checked.count
         HStack(spacing: 10) {
-            Menu {
-                Button(GroupScanModel.KeepRule.oldest.title) { model.select(keeping: .oldest) }
-                Button(GroupScanModel.KeepRule.newest.title) { model.select(keeping: .newest) }
-                Button(GroupScanModel.KeepRule.shortestPath.title) { model.select(keeping: .shortestPath) }
-                if model.volumesInResults.count > 1 {
-                    Divider()
-                    ForEach(model.volumesInResults, id: \.self) { v in Button(GroupScanModel.KeepRule.onVolume(v).title) { model.select(keeping: .onVolume(v)) } }
-                }
-                Divider()
-                Button(T("Zostaw kopię w wybranym folderze…")) {
-                    if let f = FileActions.chooseFolder(title: T("W którym folderze zostawić kopie?"), prompt: T("Wybierz")).first { model.select(keeping: .inFolder(FileWalker.canonical(f.path))) }
-                }
-            } label: { Label(T("Zaznacz według reguły"), systemImage: "checklist") }
-                .fixedSize()
-                .help(T("Tylko zaznacza — nic nie jest usuwane, dopóki nie wybierzesz akcji i jej nie potwierdzisz."))
             if count > 0 { Button(T("Odznacz wszystko")) { model.checked = [] }.buttonStyle(.borderless) }
 
             Spacer()
