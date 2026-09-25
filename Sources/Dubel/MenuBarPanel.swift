@@ -7,6 +7,8 @@ import SwiftUI
 @MainActor
 final class MenuBarStatus: ObservableObject {
     @Published var tasks: [RunningTask] = []
+    /// Dysk rozwinięty w okienku (klik w dysk pokazuje jego szybkie akcje — jak ekran dysku w oknie).
+    @Published var openDrive: String?
     /// Największy pokazany procent dla zadania — pasek nigdy się nie cofa, nawet gdy zmienia się etap.
     private var shown: [String: Double] = [:]
     weak var app: AppModel?
@@ -113,7 +115,10 @@ struct MenuBarPanel: View {
                             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!)
                         }
                     }
-                    if let m = n.mode { Button(T("Pokaż wynik")) { app.mode = m; openApp() } }
+                    if let m = n.mode {
+                        Button(T("Pokaż wynik")) { app.mode = m; app.quickNote = nil; openApp() }
+                            .buttonStyle(.borderedProminent).controlSize(.small).tint(Theme.accent.primary)
+                    }
                     Spacer()
                     Button(T("Zamknij")) { app.quickNote = nil }.foregroundStyle(.secondary)
                 }
@@ -166,10 +171,51 @@ struct MenuBarPanel: View {
         }
     }
 
+
     var disks: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(app.volumes) { v in DriveRow(volume: v, barHeight: 4) }
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(app.volumes) { v in
+                Button { withAnimation(.snappy(duration: 0.2)) { status.openDrive = status.openDrive == v.key ? nil : v.key } } label: { DriveRow(volume: v, barHeight: 4) }
+                    .buttonStyle(DriveButtonStyle(selected: status.openDrive == v.key))
+                    .accessibilityLabel(T("Pokaż dysk %@", "\(v.name)"))
+                if status.openDrive == v.key { driveActions(v).transition(.opacity.combined(with: .move(edge: .top))) }
+            }
         }
+    }
+
+    /// Szybkie akcje dysku: startują od razu w tle, postęp i wynik w tym okienku.
+    func driveActions(_ v: VolumeUsage) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if v.isCard {
+                quick("sdcard.fill", FeatureColor.card, T("Co jest zgrane?"), T("Które pliki z karty mają już kopię i gdzie")) { background { app.transfer.startCard(v.url, automatic: true) } }
+            } else {
+                quick("questionmark.folder.fill", FeatureColor.card, T("Czy ma kopie gdzie indziej?"), T("Pliki z tego dysku, których nie ma na innych dyskach")) { background { app.transfer.startCard(v.url) } }
+            }
+            quick(Mode.duplicates.symbol, Mode.duplicates.color, T("Szukaj duplikatów"), T("Identyczne pliki na tym dysku")) {
+                guard !app.duplicates.status.isRunning else { app.quickNote = QuickNote(text: T("Już szukam duplikatów — poczekaj, aż skończy się poprzedni skan.")); return }
+                app.duplicates.roots = [v.url]; app.duplicates.start()
+            }
+            if !v.isCard && v.url.path != "/" && prefs.auto.rememberDrives {
+                quick("brain", FeatureColor.pair, T("Zapamiętaj zawartość teraz"), T("Odśwież listę plików (tylko odczyt, w tle)")) { app.drives.remember(v, force: true) }
+            }
+            HStack(spacing: 14) {
+                Button(T("Pokaż w oknie")) { app.selectedDrive = v.key; openApp() }
+                Button(T("Pokaż w Finderze")) { NSWorkspace.shared.activateFileViewerSelecting([v.url]) }
+                Spacer()
+                if v.url.path != "/" { Button(T("Wysuń")) { app.transfer.eject(v.url); status.openDrive = nil } }
+            }
+            .buttonStyle(.borderless).font(.system(size: 11.5)).padding(.horizontal, 6).padding(.top, 2)
+        }
+        .padding(.leading, 8).padding(.bottom, 6)
+    }
+
+    /// Start zadania bez przełączania widoku w oknie.
+    func background(_ start: () -> Void) {
+        guard app.transfer.card?.isBusy != true else { app.quickNote = QuickNote(text: T("Już sprawdzam — poczekaj, aż skończy się poprzednie sprawdzanie.")); return }
+        let (mode, drive) = (app.mode, app.selectedDrive)
+        start()
+        if app.mode != mode { app.mode = mode }
+        app.selectedDrive = drive
     }
 }
 

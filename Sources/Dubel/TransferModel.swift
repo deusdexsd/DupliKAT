@@ -94,6 +94,7 @@ final class TransferJob: ObservableObject, Identifiable {
                 for u in extra { if (try? FileManager.default.trashItem(at: u, resultingItemURL: nil)) != nil { trashed += 1 } }
                 await MainActor.run {
                     self?.result = r; self?.mirrorTrashed = trashed; self?.stage = .done
+                    self?.app?.finished(T("Kopiowanie: gotowe"), T("skopiowano %@", "\(Fmt.files(r.copied.count))") + (r.failed.isEmpty ? "" : T(", nieudane: %@", "\(r.failed.count)")), mode: .transfer)
                     if let d = self?.destination, let name = self?.sourceName {
                         self?.app?.drives.log(paths: [d.url], "arrow.down.doc.fill", T("Dograno %@ z „%@”", "\(Fmt.files(r.copied.count))", "\(name)") + (r.failed.isEmpty ? "" : T(", nieudane: %@", "\(r.failed.count)")))
                     }

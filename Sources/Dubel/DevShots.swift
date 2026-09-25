@@ -120,6 +120,9 @@ enum DevShots {
         print("ZAZNACZENIE:", app.transfer.card?.report?.entries.map { "\($0.file.name) \($0.status)" } ?? [])
         await shoot("p2-pasek-wynik", out, windowID: "popover")
         app.transfer.closeCard()
+        st.openDrive = app.volumes.first(where: { $0.name == "M" })?.key ?? app.volumes.first?.key
+        await shoot("p2b-pasek-dysk", out, windowID: "popover")
+        st.openDrive = nil
         app.system.measure()
         try? await Task.sleep(for: .milliseconds(600))
         st.refresh()

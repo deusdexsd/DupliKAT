@@ -142,6 +142,8 @@ final class CardCheckJob: ObservableObject, Identifiable {
                     self.checked = self.checked.intersection(Set(self.missing.map(\.id)))
                     self.stage = .ready
                     if firstCheck {
+                        self.app?.finished(self.isSelection ? T("Sprawdzone: %@", "\(self.cardName)") : T("Karta „%@” sprawdzona", "\(self.cardName)"),
+                                           T("z kopią %@, bez kopii %@", "\(r.backedUp.count)", "\(self.missing.count)"), mode: .transfer, notify: !self.automatic)
                         self.app?.drives.log(paths: self.isSelection ? [] : [self.card], "sdcard.fill",
                                              T("Sprawdzono: zgrane %@, nie ma nigdzie %@", "\(r.backedUp.count)", "\(self.missing.count)"))
                         self.afterAutomaticCheck()

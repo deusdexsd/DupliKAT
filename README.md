@@ -44,7 +44,7 @@ dysków (bez treści), więc kopia na odłączonym dysku też się liczy.
 
 Wyniki w trzech widokach: lista, kompaktowa lista i siatka miniatur.
 
-Do tego: ikona w pasku menu (klik = okienko ze statusem, procentem i szybkimi akcjami, dwuklik = okno, prawy klik = menu reguł), reguły po podłączeniu karty/dysku,
+Do tego: ikona w pasku menu (klik = okienko ze statusem, procentem, szybkimi akcjami i dyskami — klik w dysk pokazuje jego akcje; dwuklik = okno, prawy klik = menu reguł). Po skończonym skanie: dźwięk, wynik w okienku z przyciskiem „Pokaż wynik” i powiadomienie, reguły po podłączeniu karty/dysku,
 alarm zajętego miejsca, przewodnik pierwszego uruchomienia i samouczek „co jest co”.
 
 ## Skróty i Stream Deck

@@ -80,6 +80,9 @@ struct SettingsView: View {
                     if m != Mode.allCases.last { Divider() }
                 }
             }
+            SectionCard(title: T("Po skończeniu"), footer: T("Wynik pojawia się też w okienku przy pasku menu — z przyciskiem, który otwiera wyniki w oknie. Powiadomienie przychodzi, gdy DupliKAT nie jest na wierzchu.")) {
+                SwitchRow(title: T("Dźwięk po skończonym skanie"), subtitle: T("Duplikaty, sprawdzanie kart i zaznaczenia, kopiowanie, pomiar danych systemowych"), isOn: $prefs.auto.finishSound)
+            }
             SectionCard(title: T("Ikona aplikacji"), footer: T("Zmienia ikonę w Docku i w oknach. W Finderze zostaje ikona z kartami — zmiana pliku aplikacji zepsułaby jej podpis.")) {
                 AppIconPicker(selection: $prefs.auto.appIcon).padding(.vertical, 4)
             }

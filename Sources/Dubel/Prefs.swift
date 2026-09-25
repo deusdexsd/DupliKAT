@@ -164,6 +164,8 @@ struct Automation: Codable, Equatable {
     var driveLabels: [String: String] = [:]
     /// Pamiętaj zawartość dysków (lista plików), żeby wiedzieć o kopiach na odłączonych dyskach.
     var rememberDrives = true
+    /// Dźwięk po skończonym skanie / sprawdzeniu / kopiowaniu.
+    var finishSound = true
     /// Role dysków: „backup” (M) i „kopia backupu” (M2), może być kilka par. Klucz: UUID woluminu albo nazwa.
     var driveRoles: [String: DriveRole] = [:]
 
@@ -216,6 +218,7 @@ struct Automation: Codable, Equatable {
         showDriveDetails = v(.showDriveDetails, d.showDriveDetails)
         driveLabels = v(.driveLabels, d.driveLabels)
         rememberDrives = v(.rememberDrives, d.rememberDrives)
+        finishSound = v(.finishSound, d.finishSound)
         driveRoles = v(.driveRoles, d.driveRoles)
     }
 

@@ -256,6 +256,14 @@ final class AppModel: ObservableObject {
     /// Komunikat szybkiej akcji dla okienka przy pasku menu.
     @Published var quickNote: QuickNote?
 
+    /// Zadanie skończone: wynik w okienku paska menu (z przyciskiem do wyników), dźwięk i — gdy okno nie jest na wierzchu — powiadomienie.
+    /// `notify: false`, gdy dane miejsce wysyła własne powiadomienie (reguły automatyczne).
+    func finished(_ title: String, _ body: String, mode: Mode, notify: Bool = true) {
+        quickNote = QuickNote(text: title + " — " + body, isError: false, mode: mode)
+        if prefs.auto.finishSound { NSSound(named: "Glass")?.play() }
+        if notify && !NSApp.isActive { Notifier.send(title, body, mode: mode) }
+    }
+
     func refreshVolumes() {
         let keys: [URLResourceKey] = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey, .volumeIsBrowsableKey, .volumeIsLocalKey, .volumeUUIDStringKey]
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
@@ -365,6 +373,9 @@ final class GroupScanModel: ObservableObject {
                 await MainActor.run {
                     guard let self else { return }
                     self.groups = result; self.status = .finished(Date())
+                    self.app?.finished(T("%@: gotowe", "\(self.mode.title)"),
+                                       result.isEmpty ? T("nic nie znaleziono") : T("%@, do odzyskania %@", "\(Fmt.groups(result.count))", "\(Fmt.bytes(self.reclaimable))"),
+                                       mode: self.mode, notify: self.onFinish == nil)
                     self.app?.drives.log(paths: roots, self.mode.symbol, T("%@: %@, do odzyskania %@", "\(self.mode.title)", "\(Fmt.groups(result.count))", "\(Fmt.bytes(self.reclaimable))"))
                     self.fireFinish()
                 }
@@ -540,7 +551,12 @@ final class BackupModel: ObservableObject {
         task = Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let r = try await checker.run(sources: src, backups: dst, progress: progress)
-                await MainActor.run { self?.report = r; self?.status = .finished(Date()); self?.fireFinish() }
+                await MainActor.run {
+                    guard let self else { return }
+                    self.report = r; self.status = .finished(Date())
+                    self.app?.finished(T("Porównanie: gotowe"), T("brakuje %@", "\(Fmt.files(r.missing.count))"), mode: .backup, notify: self.onFinish == nil)
+                    self.fireFinish()
+                }
             } catch is CancellationError {
                 await MainActor.run { self?.status = .idle }
             } catch {
@@ -629,7 +645,12 @@ final class FCPModel: ObservableObject {
         task = Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let libs = try FCPGeneratedScanner.scan(roots: r, excluded: excluded, progress: progress)
-                await MainActor.run { self?.libraries = libs; self?.status = .finished(Date()); self?.fireFinish() }
+                await MainActor.run {
+                    guard let self else { return }
+                    self.libraries = libs; self.status = .finished(Date())
+                    self.app?.finished(T("Pliki montażowe: gotowe"), T("%@ do przejrzenia", "\(Fmt.bytes(libs.reduce(0) { $0 + $1.folders.reduce(0) { $0 + $1.size } }))"), mode: .fcp, notify: self.onFinish == nil)
+                    self.fireFinish()
+                }
             } catch is CancellationError {
                 await MainActor.run { self?.status = .idle }
             } catch {

@@ -48,6 +48,7 @@ final class SystemModel: ObservableObject {
                     self.app?.prefs.auto.lastSystemWatch = snap.date
                     try? FileManager.default.createDirectory(at: AppPaths.support, withIntermediateDirectories: true)
                     try? JSONEncoder().encode(Stored(current: self.current, previous: self.previous)).write(to: AppPaths.watchFile, options: .atomic)
+                    if !background { self.app?.finished(T("Dane systemowe: zmierzone"), T("razem %@", "\(Fmt.bytes(self.total))"), mode: .system) }
                     completion?(SystemWatch.alarms(self.changes, growthThreshold: growth))
                 }
             } catch {

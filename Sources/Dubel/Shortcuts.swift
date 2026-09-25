@@ -198,12 +198,6 @@ enum QuickActions {
             guard !sel.isEmpty else { app.quickNote = QuickNote(text: T("Nic nie jest zaznaczone w Finderze. Zaznacz folder (albo pliki) i kliknij jeszcze raz.")); return }
             guard !app.duplicates.status.isRunning else { app.quickNote = QuickNote(text: T("Już szukam duplikatów — poczekaj, aż skończy się poprzedni skan.")); return }
             app.duplicates.roots = sel
-            app.duplicates.onFinish = {
-                let g = app.duplicates.groups
-                let body = g.isEmpty ? T("Brak duplikatów.") : T("%@, do odzyskania %@. Nic nie zostało usunięte.", "\(Fmt.groups(g.count))", "\(Fmt.bytes(app.duplicates.reclaimable))")
-                app.quickNote = QuickNote(text: T("Duplikaty: %@", "\(sel.map(\.lastPathComponent).joined(separator: ", "))") + " — " + body, isError: false, mode: g.isEmpty ? nil : .duplicates)
-                Notifier.send(T("Duplikaty: %@", "\(sel.map(\.lastPathComponent).joined(separator: ", "))"), body, mode: .duplicates)
-            }
             app.duplicates.start()
         case .toggleWindow: delegate?.toggleMain()
         case .measureSystem: app.system.measure()
